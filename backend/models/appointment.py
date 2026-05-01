@@ -114,6 +114,23 @@ class BillModel:
             return cur.fetchall()
 
     @staticmethod
+    def list_all():
+        with DBContext() as (conn, cur):
+            cur.execute(
+                """
+                SELECT b.*, a.date_time AS appointment_date,
+                       p.name AS pet_name, uo.full_name AS owner_name
+                FROM Bill b
+                JOIN Appointment a ON a.appointment_id = b.appointment_id
+                JOIN Pet p ON p.pet_id = a.pet_id
+                JOIN Pet_Owner po ON po.user_id = p.owner_id
+                JOIN User uo ON uo.user_id = po.user_id
+                ORDER BY b.generated_date DESC
+                """
+            )
+            return cur.fetchall()
+
+    @staticmethod
     def mark_paid(bill_id: int):
         with DBContext() as (conn, cur):
             cur.execute(

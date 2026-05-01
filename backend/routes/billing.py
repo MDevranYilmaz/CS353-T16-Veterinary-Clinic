@@ -17,13 +17,17 @@ bp = Blueprint("billing", __name__, url_prefix="/billing")
 @require_auth
 def list_bills():
     try:
+        role = g.user.get("role")
         owner_id = request.args.get("owner_id") or (
-            g.user["user_id"] if g.user.get("role") == "pet_owner" else None
+            g.user["user_id"] if role == "pet_owner" else None
         )
-        if not owner_id:
-            return error("owner_id is required", 400)
         page, per_page = parse_pagination(request.args)
-        bills = BillModel.list_by_owner(owner_id)
+        if role in ("manager", "veterinarian") and not owner_id:
+            bills = BillModel.list_all()
+        elif owner_id:
+            bills = BillModel.list_by_owner(owner_id)
+        else:
+            return error("owner_id is required", 400)
         return success(paginate(bills, page, per_page))
     except Exception as exc:
         logger.error("list_bills error: %s", exc)

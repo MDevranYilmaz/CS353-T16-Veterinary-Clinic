@@ -1,5 +1,8 @@
 'use client'
 
+import { useState, useEffect } from 'react'
+import { useAuth } from '@/lib/auth-context'
+import { vaccinationApi, reportApi } from '@/lib/api'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -18,30 +21,36 @@ import {
   Legend,
 } from 'recharts'
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart'
-import { AlertTriangle, TrendingUp, TrendingDown } from 'lucide-react'
+import { AlertTriangle, TrendingUp } from 'lucide-react'
 
-// Overdue Vaccinations Chart
-const overdueVaccinationsData = [
-  { name: 'Rabies', overdue: 5, dueSoon: 12 },
-  { name: 'DHPP', overdue: 8, dueSoon: 15 },
-  { name: 'Feline Distemper', overdue: 3, dueSoon: 8 },
-  { name: 'Bordetella', overdue: 6, dueSoon: 10 },
-  { name: 'Leptospirosis', overdue: 2, dueSoon: 5 },
-]
+// ── Overdue Vaccinations Chart ─────────────────────────────────────────────────
 
 export function OverdueVaccinationsChart() {
-  const chartConfig = {
-    overdue: {
-      label: 'Overdue',
-      color: 'var(--color-destructive)',
-    },
-    dueSoon: {
-      label: 'Due Soon',
-      color: 'var(--color-warning)',
-    },
-  }
+  const { user } = useAuth()
+  const [chartData, setChartData] = useState<{ name: string; overdue: number }[]>([])
+  const [totalOverdue, setTotalOverdue] = useState(0)
 
-  const totalOverdue = overdueVaccinationsData.reduce((sum, d) => sum + d.overdue, 0)
+  useEffect(() => {
+    vaccinationApi.overdue(user?.branchId ?? undefined)
+      .then((vaxList) => {
+        const grouped: Record<string, number> = {}
+        for (const v of vaxList) {
+          const name = v.vaccineName || 'Unknown'
+          grouped[name] = (grouped[name] ?? 0) + 1
+        }
+        const data = Object.entries(grouped)
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 6)
+          .map(([name, overdue]) => ({ name, overdue }))
+        setChartData(data)
+        setTotalOverdue(vaxList.length)
+      })
+      .catch(console.error)
+  }, [user?.branchId])
+
+  const chartConfig = {
+    overdue: { label: 'Overdue', color: 'var(--color-destructive)' },
+  }
 
   return (
     <Card>
@@ -49,7 +58,7 @@ export function OverdueVaccinationsChart() {
         <div className="flex items-center justify-between">
           <div>
             <CardTitle className="text-lg">Vaccination Status</CardTitle>
-            <CardDescription>Overdue and upcoming vaccinations</CardDescription>
+            <CardDescription>Overdue vaccinations by type</CardDescription>
           </div>
           <Badge variant="destructive" className="gap-1">
             <AlertTriangle className="w-3 h-3" />
@@ -58,47 +67,60 @@ export function OverdueVaccinationsChart() {
         </div>
       </CardHeader>
       <CardContent>
-        <ChartContainer config={chartConfig} className="h-64">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={overdueVaccinationsData} layout="vertical">
-              <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-              <XAxis type="number" />
-              <YAxis dataKey="name" type="category" width={100} tick={{ fontSize: 12 }} />
-              <ChartTooltip content={<ChartTooltipContent />} />
-              <Bar dataKey="overdue" fill="var(--color-destructive)" radius={[0, 4, 4, 0]} />
-              <Bar dataKey="dueSoon" fill="var(--color-warning)" radius={[0, 4, 4, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </ChartContainer>
+        {chartData.length === 0 ? (
+          <div className="flex items-center justify-center h-64 text-sm text-muted-foreground">
+            No overdue vaccinations
+          </div>
+        ) : (
+          <ChartContainer config={chartConfig} className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={chartData} layout="vertical">
+                <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                <XAxis type="number" />
+                <YAxis dataKey="name" type="category" width={110} tick={{ fontSize: 12 }} />
+                <ChartTooltip content={<ChartTooltipContent />} />
+                <Bar dataKey="overdue" fill="var(--color-destructive)" radius={[0, 4, 4, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </ChartContainer>
+        )}
       </CardContent>
     </Card>
   )
 }
 
-// Stock Consumption Chart
-const stockConsumptionData = [
-  { month: 'Jan', medicines: 450, vaccines: 120, supplements: 85 },
-  { month: 'Feb', medicines: 520, vaccines: 145, supplements: 92 },
-  { month: 'Mar', medicines: 480, vaccines: 160, supplements: 78 },
-  { month: 'Apr', medicines: 560, vaccines: 135, supplements: 95 },
-  { month: 'May', medicines: 590, vaccines: 170, supplements: 88 },
-  { month: 'Jun', medicines: 620, vaccines: 185, supplements: 102 },
-]
+// ── Stock Consumption Chart ───────────────────────────────────────────────────
 
 export function StockConsumptionChart() {
+  const { user } = useAuth()
+  const [chartData, setChartData] = useState<{ name: string; consumed: number; cost: number }[]>([])
+
+  useEffect(() => {
+    if (!user?.branchId) return
+    reportApi.stockConsumption(user.branchId)
+      .then((rows: any[]) => {
+        const grouped: Record<string, { consumed: number; cost: number }> = {}
+        for (const row of rows) {
+          const type = (row.med_type as string) || 'medicine'
+          const label = type.charAt(0).toUpperCase() + type.slice(1)
+          if (!grouped[label]) grouped[label] = { consumed: 0, cost: 0 }
+          grouped[label].consumed += Number(row.total_consumed ?? 0)
+          grouped[label].cost += Number(row.total_cost ?? 0)
+        }
+        setChartData(
+          Object.entries(grouped).map(([name, vals]) => ({
+            name,
+            consumed: vals.consumed,
+            cost: vals.cost,
+          }))
+        )
+      })
+      .catch(console.error)
+  }, [user?.branchId])
+
   const chartConfig = {
-    medicines: {
-      label: 'Medicines',
-      color: 'var(--color-primary)',
-    },
-    vaccines: {
-      label: 'Vaccines',
-      color: 'var(--color-accent)',
-    },
-    supplements: {
-      label: 'Supplements',
-      color: 'var(--color-chart-3)',
-    },
+    consumed: { label: 'Units Used', color: 'var(--color-primary)' },
+    cost: { label: 'Cost ($)', color: 'var(--color-accent)' },
   }
 
   return (
@@ -107,53 +129,41 @@ export function StockConsumptionChart() {
         <div className="flex items-center justify-between">
           <div>
             <CardTitle className="text-lg">Stock Consumption</CardTitle>
-            <CardDescription>Monthly usage by category</CardDescription>
+            <CardDescription>Total usage by category</CardDescription>
           </div>
           <div className="flex items-center gap-1 text-sm text-primary">
             <TrendingUp className="w-4 h-4" />
-            <span>+12% this month</span>
+            <span>by type</span>
           </div>
         </div>
       </CardHeader>
       <CardContent>
-        <ChartContainer config={chartConfig} className="h-64">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={stockConsumptionData}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} />
-              <XAxis dataKey="month" tick={{ fontSize: 12 }} />
-              <YAxis tick={{ fontSize: 12 }} />
-              <ChartTooltip content={<ChartTooltipContent />} />
-              <Legend />
-              <Line
-                type="monotone"
-                dataKey="medicines"
-                stroke="var(--color-primary)"
-                strokeWidth={2}
-                dot={{ fill: 'var(--color-primary)', r: 4 }}
-              />
-              <Line
-                type="monotone"
-                dataKey="vaccines"
-                stroke="var(--color-accent)"
-                strokeWidth={2}
-                dot={{ fill: 'var(--color-accent)', r: 4 }}
-              />
-              <Line
-                type="monotone"
-                dataKey="supplements"
-                stroke="var(--color-chart-3)"
-                strokeWidth={2}
-                dot={{ fill: 'var(--color-chart-3)', r: 4 }}
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        </ChartContainer>
+        {chartData.length === 0 ? (
+          <div className="flex items-center justify-center h-64 text-sm text-muted-foreground">
+            No consumption data
+          </div>
+        ) : (
+          <ChartContainer config={chartConfig} className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={chartData}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="name" tick={{ fontSize: 12 }} />
+                <YAxis tick={{ fontSize: 12 }} />
+                <ChartTooltip content={<ChartTooltipContent />} />
+                <Legend />
+                <Bar dataKey="consumed" fill="var(--color-primary)" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="cost" fill="var(--color-accent)" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </ChartContainer>
+        )}
       </CardContent>
     </Card>
   )
 }
 
-// Revenue Distribution Chart
+// ── Revenue Distribution Chart (static — no direct API endpoint) ──────────────
+
 const revenueData = [
   { name: 'Consultations', value: 35, color: 'var(--color-primary)' },
   { name: 'Vaccinations', value: 25, color: 'var(--color-accent)' },
@@ -202,10 +212,7 @@ export function RevenueDistributionChart() {
         <div className="flex flex-wrap justify-center gap-3 mt-4">
           {revenueData.map((item, index) => (
             <div key={index} className="flex items-center gap-2">
-              <div
-                className="w-3 h-3 rounded-full"
-                style={{ backgroundColor: item.color }}
-              />
+              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }} />
               <span className="text-sm text-muted-foreground">{item.name}</span>
             </div>
           ))}
@@ -215,7 +222,8 @@ export function RevenueDistributionChart() {
   )
 }
 
-// Appointment Trends Chart
+// ── Appointment Trends Chart (static — no day-of-week API) ────────────────────
+
 const appointmentTrendsData = [
   { day: 'Mon', checkups: 12, vaccinations: 8, surgeries: 2, emergency: 3 },
   { day: 'Tue', checkups: 15, vaccinations: 10, surgeries: 3, emergency: 2 },
@@ -227,22 +235,10 @@ const appointmentTrendsData = [
 
 export function AppointmentTrendsChart() {
   const chartConfig = {
-    checkups: {
-      label: 'Checkups',
-      color: 'var(--color-primary)',
-    },
-    vaccinations: {
-      label: 'Vaccinations',
-      color: 'var(--color-accent)',
-    },
-    surgeries: {
-      label: 'Surgeries',
-      color: 'var(--color-chart-3)',
-    },
-    emergency: {
-      label: 'Emergency',
-      color: 'var(--color-destructive)',
-    },
+    checkups: { label: 'Checkups', color: 'var(--color-primary)' },
+    vaccinations: { label: 'Vaccinations', color: 'var(--color-accent)' },
+    surgeries: { label: 'Surgeries', color: 'var(--color-chart-3)' },
+    emergency: { label: 'Emergency', color: 'var(--color-destructive)' },
   }
 
   return (

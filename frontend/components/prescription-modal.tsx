@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import type { Medicine, Prescription } from '@/lib/types'
+import { prescriptionApi } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -21,7 +22,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
-import { Pill, Plus, Syringe, Trash2, AlertTriangle } from 'lucide-react'
+import { Pill, Plus, Syringe, Trash2, AlertTriangle, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface PrescriptionModalProps {
@@ -29,21 +30,47 @@ interface PrescriptionModalProps {
   onOpenChange: (open: boolean) => void
   medicines: Medicine[]
   petName: string
-  onSave: (prescriptions: Omit<Prescription, 'id'>[]) => void
+  petId: string
+  vetId: string
+  onSave: () => void
 }
 
-export function PrescriptionModal({ open, onOpenChange, medicines, petName, onSave }: PrescriptionModalProps) {
+const freqMap: Record<string, number> = {
+  'once daily': 1,
+  'twice daily': 2,
+  'three times daily': 3,
+  'every 8 hours': 3,
+  'every 12 hours': 2,
+  'as needed': 1,
+}
+
+function parseDosage(s: string): number {
+  const n = parseFloat(s)
+  return isNaN(n) ? 1 : n
+}
+
+export function PrescriptionModal({
+  open,
+  onOpenChange,
+  medicines,
+  petName,
+  petId,
+  onSave,
+}: PrescriptionModalProps) {
   const [prescriptions, setPrescriptions] = useState<Omit<Prescription, 'id'>[]>([])
   const [selectedMedicine, setSelectedMedicine] = useState<string>('')
   const [dosage, setDosage] = useState('')
   const [frequency, setFrequency] = useState('')
   const [duration, setDuration] = useState('')
   const [quantity, setQuantity] = useState('')
+  const [saving, setSaving] = useState(false)
 
-  const availableMedicines = medicines.filter(m => m.category === 'medicine' || m.category === 'supplement')
-  
+  const availableMedicines = medicines.filter(
+    (m) => m.category === 'medicine' || m.category === 'supplement'
+  )
+
   const handleAddPrescription = () => {
-    const medicine = medicines.find(m => m.id === selectedMedicine)
+    const medicine = medicines.find((m) => m.id === selectedMedicine)
     if (!medicine || !dosage || !frequency || !duration || !quantity) return
 
     setPrescriptions([
@@ -57,8 +84,6 @@ export function PrescriptionModal({ open, onOpenChange, medicines, petName, onSa
         quantity: parseInt(quantity),
       },
     ])
-
-    // Reset form
     setSelectedMedicine('')
     setDosage('')
     setFrequency('')
@@ -70,14 +95,36 @@ export function PrescriptionModal({ open, onOpenChange, medicines, petName, onSa
     setPrescriptions(prescriptions.filter((_, i) => i !== index))
   }
 
-  const handleSave = () => {
-    onSave(prescriptions)
-    setPrescriptions([])
-    onOpenChange(false)
+  const handleSave = async () => {
+    if (!petId || prescriptions.length === 0) return
+    setSaving(true)
+    try {
+      const now = new Date()
+      const dateTime = `${now.toISOString().slice(0, 10)} ${now.toTimeString().slice(0, 8)}`
+      const expDate = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10)
+
+      await prescriptionApi.create({
+        pet_id: Number(petId),
+        date_time: dateTime,
+        expiration_date: expDate,
+        medicines: prescriptions.map((rx) => ({
+          barcode_no: rx.medicineId,
+          dosage: parseDosage(rx.dosage),
+          frequency: freqMap[rx.frequency] ?? 1,
+        })),
+      })
+      setPrescriptions([])
+      onSave()
+      onOpenChange(false)
+    } catch (e) {
+      console.error('[PrescriptionModal] save error:', e)
+    } finally {
+      setSaving(false)
+    }
   }
 
   const getStockWarning = (medicineId: string, requestedQty: number) => {
-    const medicine = medicines.find(m => m.id === medicineId)
+    const medicine = medicines.find((m) => m.id === medicineId)
     if (!medicine) return null
     if (requestedQty > medicine.currentStock) {
       return `Only ${medicine.currentStock} in stock`
@@ -90,16 +137,14 @@ export function PrescriptionModal({ open, onOpenChange, medicines, petName, onSa
       <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>Create Prescription</DialogTitle>
-          <DialogDescription>
-            Add medications for {petName}
-          </DialogDescription>
+          <DialogDescription>Add medications for {petName}</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-6 py-4">
           {/* Add medication form */}
           <div className="space-y-4 p-4 rounded-lg border bg-muted/30">
             <h4 className="font-medium text-sm">Add Medication</h4>
-            
+
             <div className="grid grid-cols-2 gap-4">
               <div className="col-span-2">
                 <Label>Medication</Label>
@@ -247,11 +292,18 @@ export function PrescriptionModal({ open, onOpenChange, medicines, petName, onSa
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
             Cancel
           </Button>
-          <Button onClick={handleSave} disabled={prescriptions.length === 0}>
-            Save Prescription
+          <Button onClick={handleSave} disabled={prescriptions.length === 0 || saving}>
+            {saving ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              'Save Prescription'
+            )}
           </Button>
         </DialogFooter>
       </DialogContent>

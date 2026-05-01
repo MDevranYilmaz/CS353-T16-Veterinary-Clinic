@@ -426,6 +426,18 @@ export const referralApi = {
     put<any>(`/referrals/${id}/status`, { status }),
 }
 
+// ─── Medical Records ─────────────────────────────────────────────────────────
+
+export const medicalRecordApi = {
+  create: (data: {
+    pet_id: number
+    date_time: string
+    diagnosis: string
+    treatments: string
+    notes?: string
+  }) => post<{ success: boolean }>('/medical-records', data),
+}
+
 // ─── Evaluations ─────────────────────────────────────────────────────────────
 
 export const evaluationApi = {
@@ -451,11 +463,4 @@ export const reportApi = {
   branchPerformance: () => get<any[]>('/reports/branch-performance'),
   stockConsumption: (branchId: number | string) => get<any[]>(`/reports/stock-consumption/${branchId}`),
   wasteStats: (branchId: number | string) => get<any[]>(`/reports/waste-stats/${branchId}`),
-}
-
-function medCategory(type = ''): Medicine['category'] {
-  const t = type.toLowerCase()
-  if (t === 'vaccine') return 'vaccine'
-  if (t === 'supplement') return 'supplement'
-  return 'medicine'
 }

@@ -7,14 +7,15 @@ SLOT_HOURS = [9, 10, 11, 12, 14, 15, 16, 17]
 
 
 def check_daily_limit(vet_id: int, date_time: str) -> bool:
-    """Call stored procedure; returns True if vet can accept another appointment."""
+    """Return True if vet has fewer than 15 non-cancelled appointments on the given day."""
     with DBContext() as (conn, cur):
-        cur.callproc("check_appointment_limit", [vet_id, date_time, False])
-        for result in cur.stored_results():
-            row = result.fetchone()
-            if row:
-                return bool(row[0])
-    return False
+        cur.execute(
+            "SELECT COUNT(*) AS cnt FROM Appointment "
+            "WHERE vet_id = %s AND DATE(date_time) = DATE(%s) AND status != 'Cancelled'",
+            (vet_id, date_time),
+        )
+        row = cur.fetchone()
+        return row["cnt"] < 15
 
 
 def check_vet_available(vet_id: int, date_time: str) -> bool:

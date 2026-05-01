@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAuth } from '@/lib/auth-context'
 import { LoginScreen } from '@/components/login-screen'
 import { Sidebar } from '@/components/sidebar'
@@ -10,6 +10,10 @@ import { ManagerDashboard } from '@/components/dashboards/manager-dashboard'
 import { AppointmentWizard } from '@/components/appointment-wizard'
 import { VetFinder } from '@/components/vet-finder'
 import { PetCard } from '@/components/pet-card'
+import { AddPetForm } from '@/components/add-pet-form'
+import { MedicalRecords } from '@/components/medical-records'
+import { EvaluationModal } from '@/components/evaluation-modal'
+import { VetSchedule } from '@/components/vet-schedule'
 import { InventoryTable } from '@/components/inventory-table'
 import { ReferralModal } from '@/components/referral-modal'
 import {
@@ -41,22 +45,30 @@ import {
   LogOut,
   User,
   Loader2,
+  Star,
 } from 'lucide-react'
-import { petApi, appointmentApi, billingApi, referralApi, vaccinationApi } from '@/lib/api'
-import { useEffect } from 'react'
-import type { Pet, Appointment, Invoice, VaccinationSchedule, Referral, Medicine } from '@/lib/types'
+import { petApi, appointmentApi, billingApi, referralApi } from '@/lib/api'
+import type { Pet, Appointment, Invoice, MedicalRecord } from '@/lib/types'
 
 export default function VetClinicApp() {
   const { user, isLoggedIn, isLoading, logout } = useAuth()
   const [currentView, setCurrentView] = useState('dashboard')
   const [showAppointmentWizard, setShowAppointmentWizard] = useState(false)
   const [referralModal, setReferralModal] = useState(false)
+  const [evalModal, setEvalModal] = useState<{ open: boolean; vetId: string; vetName: string }>({
+    open: false, vetId: '', vetName: '',
+  })
 
-  // Data state for owner views
+  // Owner data
   const [ownerPets, setOwnerPets] = useState<Pet[]>([])
   const [ownerAppointments, setOwnerAppointments] = useState<Appointment[]>([])
   const [ownerBills, setOwnerBills] = useState<Invoice[]>([])
   const [dataLoading, setDataLoading] = useState(false)
+
+  // Vet: records view data
+  const [vetPets, setVetPets] = useState<Pet[]>([])
+  const [vetRecords, setVetRecords] = useState<MedicalRecord[]>([])
+  const [recordsLoading, setRecordsLoading] = useState(false)
 
   // Fetch owner data
   useEffect(() => {
@@ -73,12 +85,40 @@ export default function VetClinicApp() {
     }).catch(console.error).finally(() => setDataLoading(false))
   }, [user])
 
+  const reloadOwnerPets = async () => {
+    if (!user) return
+    try {
+      const pets = await petApi.list(user.userId)
+      setOwnerPets(pets)
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
+  // Fetch vet records data when navigating to records view
+  useEffect(() => {
+    if (!user || user.role !== 'vet' || currentView !== 'records') return
+    setRecordsLoading(true)
+    const today = new Date().toISOString().slice(0, 10)
+    appointmentApi.listByVet(user.userId, today)
+      .then(async (appts) => {
+        const petIds = [...new Set(appts.map((a) => a.petId))]
+        const petsData = await Promise.all(petIds.map((id) => petApi.get(id)))
+        const records = (
+          await Promise.all(petsData.map((p) => petApi.medicalHistory(p.id)))
+        ).flat()
+        setVetPets(petsData)
+        setVetRecords(records)
+      })
+      .catch(console.error)
+      .finally(() => setRecordsLoading(false))
+  }, [user, currentView])
+
   const handleViewChange = (view: string) => {
     setCurrentView(view)
     setShowAppointmentWizard(false)
   }
 
-  // ── Loading spinner while checking auth ──
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -87,7 +127,6 @@ export default function VetClinicApp() {
     )
   }
 
-  // ── Not logged in → show login screen ──
   if (!isLoggedIn || !user) {
     return <LoginScreen />
   }
@@ -114,7 +153,7 @@ export default function VetClinicApp() {
       )
     }
 
-    // ── Owner views ──
+    // ── Owner views ──────────────────────────────────────────────────────────
     if (user.role === 'owner') {
       switch (currentView) {
         case 'dashboard':
@@ -129,6 +168,7 @@ export default function VetClinicApp() {
               }}
             />
           )
+
         case 'my-pets':
           return (
             <div className="space-y-6">
@@ -142,7 +182,20 @@ export default function VetClinicApp() {
                 </Button>
               </div>
               {dataLoading ? (
-                <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
+                <div className="flex justify-center py-12">
+                  <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                </div>
+              ) : ownerPets.length === 0 ? (
+                <Card>
+                  <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+                    <Dog className="w-12 h-12 text-muted-foreground/30 mb-3" />
+                    <p className="font-medium">No pets yet</p>
+                    <p className="text-sm text-muted-foreground mt-1">Add your first pet to get started.</p>
+                    <Button className="mt-4" onClick={() => handleViewChange('add-pet')}>
+                      <Plus className="w-4 h-4 mr-2" />Add Pet
+                    </Button>
+                  </CardContent>
+                </Card>
               ) : (
                 <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {ownerPets.map((pet) => (
@@ -158,6 +211,18 @@ export default function VetClinicApp() {
               )}
             </div>
           )
+
+        case 'add-pet':
+          return (
+            <AddPetForm
+              onSuccess={() => {
+                reloadOwnerPets()
+                handleViewChange('my-pets')
+              }}
+              onCancel={() => handleViewChange('my-pets')}
+            />
+          )
+
         case 'appointments':
           return (
             <div className="space-y-6">
@@ -173,14 +238,18 @@ export default function VetClinicApp() {
               <Card>
                 <CardContent className="p-6 space-y-4">
                   {dataLoading ? (
-                    <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
+                    <div className="flex justify-center py-8">
+                      <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                    </div>
                   ) : ownerAppointments.length === 0 ? (
                     <p className="text-center text-muted-foreground py-8">No appointments found.</p>
                   ) : (
                     ownerAppointments.map((apt) => (
                       <div key={apt.id} className="flex items-center gap-4 p-4 rounded-lg border">
                         <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-primary/10">
-                          {apt.petSpecies === 'dog' ? <Dog className="w-6 h-6 text-primary" /> : <Cat className="w-6 h-6 text-primary" />}
+                          {apt.petSpecies === 'dog'
+                            ? <Dog className="w-6 h-6 text-primary" />
+                            : <Cat className="w-6 h-6 text-primary" />}
                         </div>
                         <div className="flex-1">
                           <div className="flex items-center gap-2">
@@ -189,14 +258,34 @@ export default function VetClinicApp() {
                           </div>
                           <p className="text-sm text-muted-foreground">{apt.vetName}</p>
                           <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1">
-                            <span className="flex items-center gap-1"><Calendar className="w-3 h-3" />{apt.date}</span>
-                            <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{apt.time}</span>
+                            <span className="flex items-center gap-1">
+                              <Calendar className="w-3 h-3" />{apt.date}
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <Clock className="w-3 h-3" />{apt.time}
+                            </span>
                           </div>
                         </div>
-                        <Badge className={
-                          apt.status === 'scheduled' ? 'bg-accent/10 text-accent border-0' :
-                          apt.status === 'completed' ? 'bg-primary/10 text-primary border-0' : ''
-                        }>{apt.status}</Badge>
+                        <div className="flex items-center gap-2">
+                          <Badge className={
+                            apt.status === 'scheduled' ? 'bg-accent/10 text-accent border-0' :
+                            apt.status === 'completed' ? 'bg-primary/10 text-primary border-0' : ''
+                          }>{apt.status}</Badge>
+                          {apt.status === 'completed' && apt.vetId && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="gap-1 h-7 text-xs"
+                              onClick={() => setEvalModal({
+                                open: true,
+                                vetId: apt.vetId,
+                                vetName: apt.vetName,
+                              })}
+                            >
+                              <Star className="w-3 h-3" />Rate
+                            </Button>
+                          )}
+                        </div>
                       </div>
                     ))
                   )}
@@ -204,8 +293,10 @@ export default function VetClinicApp() {
               </Card>
             </div>
           )
+
         case 'find-vet':
           return <VetFinder onBookAppointment={() => setShowAppointmentWizard(true)} />
+
         case 'invoices':
           return (
             <div className="space-y-6">
@@ -216,7 +307,9 @@ export default function VetClinicApp() {
               <Card>
                 <CardContent className="p-6 space-y-4">
                   {dataLoading ? (
-                    <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
+                    <div className="flex justify-center py-8">
+                      <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                    </div>
                   ) : ownerBills.length === 0 ? (
                     <p className="text-center text-muted-foreground py-8">No invoices found.</p>
                   ) : (
@@ -228,8 +321,10 @@ export default function VetClinicApp() {
                         </div>
                         <div className="text-right flex items-center gap-3">
                           <p className="font-bold">${bill.total.toFixed(2)}</p>
-                          <Badge variant={bill.status === 'paid' ? 'default' : 'destructive'}
-                            className={bill.status === 'paid' ? 'bg-primary/10 text-primary border-0' : ''}>
+                          <Badge
+                            variant={bill.status === 'paid' ? 'default' : 'destructive'}
+                            className={bill.status === 'paid' ? 'bg-primary/10 text-primary border-0' : ''}
+                          >
                             {bill.status}
                           </Badge>
                         </div>
@@ -240,27 +335,60 @@ export default function VetClinicApp() {
               </Card>
             </div>
           )
+
         default:
-          return <OwnerDashboard pets={ownerPets} appointments={ownerAppointments} loading={dataLoading} onNavigate={handleViewChange} />
+          return (
+            <OwnerDashboard
+              pets={ownerPets}
+              appointments={ownerAppointments}
+              loading={dataLoading}
+              onNavigate={handleViewChange}
+            />
+          )
       }
     }
 
-    // ── Vet views ──
+    // ── Vet views ────────────────────────────────────────────────────────────
     if (user.role === 'vet') {
       switch (currentView) {
         case 'dashboard':
           return <VetDashboard onNavigate={handleViewChange} />
+
         case 'schedule':
-          return (
-            <div className="space-y-6">
-              <h1 className="text-2xl font-bold">My Schedule</h1>
-              <VetDashboard onNavigate={handleViewChange} scheduleOnly />
-            </div>
-          )
+          return <VetSchedule />
+
         case 'patients':
           return <VetDashboard onNavigate={handleViewChange} patientsOnly />
+
         case 'records':
-          return <VetDashboard onNavigate={handleViewChange} recordsOnly />
+          return (
+            <div className="space-y-6">
+              <h1 className="text-2xl font-bold">Patient Records</h1>
+              {recordsLoading ? (
+                <div className="flex justify-center py-20">
+                  <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                </div>
+              ) : vetPets.length === 0 ? (
+                <Card>
+                  <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+                    <Syringe className="w-12 h-12 text-muted-foreground/30 mb-3" />
+                    <p className="font-medium">No patients today</p>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Records appear for pets you have appointments with today.
+                    </p>
+                  </CardContent>
+                </Card>
+              ) : (
+                <MedicalRecords
+                  pets={vetPets}
+                  records={vetRecords}
+                  userRole="vet"
+                  onRecordAdded={() => handleViewChange('records')}
+                />
+              )}
+            </div>
+          )
+
         case 'vaccinations':
           return (
             <div className="space-y-6">
@@ -271,6 +399,7 @@ export default function VetClinicApp() {
               </div>
             </div>
           )
+
         case 'referrals':
           return (
             <div className="space-y-6">
@@ -297,16 +426,18 @@ export default function VetClinicApp() {
               />
             </div>
           )
+
         default:
           return <VetDashboard onNavigate={handleViewChange} />
       }
     }
 
-    // ── Manager views ──
+    // ── Manager views ────────────────────────────────────────────────────────
     if (user.role === 'manager') {
       switch (currentView) {
         case 'dashboard':
           return <ManagerDashboard onNavigate={handleViewChange} />
+
         case 'inventory':
           return (
             <div className="space-y-6">
@@ -314,6 +445,7 @@ export default function VetClinicApp() {
               <ManagerDashboard onNavigate={handleViewChange} inventoryOnly />
             </div>
           )
+
         case 'billing':
           return (
             <div className="space-y-6">
@@ -321,6 +453,7 @@ export default function VetClinicApp() {
               <ManagerDashboard onNavigate={handleViewChange} billingOnly />
             </div>
           )
+
         case 'reports':
           return (
             <div className="space-y-6">
@@ -333,6 +466,7 @@ export default function VetClinicApp() {
               </div>
             </div>
           )
+
         default:
           return <ManagerDashboard onNavigate={handleViewChange} />
       }
@@ -363,7 +497,9 @@ export default function VetClinicApp() {
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="flex items-center gap-2 h-auto py-1.5">
                   <Avatar className="w-8 h-8">
-                    <AvatarFallback className="bg-primary/10 text-primary text-sm">{initials}</AvatarFallback>
+                    <AvatarFallback className="bg-primary/10 text-primary text-sm">
+                      {initials}
+                    </AvatarFallback>
                   </Avatar>
                   <span className="text-sm font-medium hidden sm:block">{user.fullName}</span>
                 </Button>
@@ -374,7 +510,10 @@ export default function VetClinicApp() {
                   {user.email}
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={logout} className="text-destructive focus:text-destructive">
+                <DropdownMenuItem
+                  onClick={logout}
+                  className="text-destructive focus:text-destructive"
+                >
                   <LogOut className="w-4 h-4 mr-2" />
                   Sign Out
                 </DropdownMenuItem>
@@ -385,6 +524,14 @@ export default function VetClinicApp() {
 
         <div className="p-6 lg:p-8">{renderContent()}</div>
       </main>
+
+      {/* Evaluation Modal (owner: rate a vet after completed appointment) */}
+      <EvaluationModal
+        open={evalModal.open}
+        onOpenChange={(open) => setEvalModal({ ...evalModal, open })}
+        vetId={evalModal.vetId}
+        vetName={evalModal.vetName}
+      />
     </div>
   )
 }

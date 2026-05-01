@@ -29,18 +29,20 @@ def list_referrals():
 @bp.route("", methods=["POST"])
 @require_role("veterinarian")
 def create_referral_route():
+    import datetime
     data = request.get_json(silent=True) or {}
-    missing = require_fields(data, ["reason", "referral_date", "receiver_vet_id", "pet_id"])
+    missing = require_fields(data, ["reason", "receiver_vet_id", "pet_id"])
     if missing:
         return error(f"Missing fields: {', '.join(missing)}", 400)
 
-    if not valid_date(data["referral_date"]):
+    referral_date = data.get("referral_date") or datetime.date.today().isoformat()
+    if not valid_date(referral_date):
         return error("referral_date must be YYYY-MM-DD", 400)
 
     try:
         referral_id = create_referral(
             data["reason"],
-            data["referral_date"],
+            referral_date,
             g.user["user_id"],
             data["receiver_vet_id"],
             data["pet_id"],
