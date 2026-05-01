@@ -1,10 +1,12 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useAuth } from '@/lib/auth-context'
+import { petApi, branchApi, vetApi, appointmentApi } from '@/lib/api'
+import type { Pet, Branch, Veterinarian } from '@/lib/types'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Calendar } from '@/components/ui/calendar'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
@@ -16,11 +18,6 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import {
-  pets,
-  veterinarians,
-  branches,
-} from '@/lib/mock-data'
-import {
   ArrowLeft,
   ArrowRight,
   Calendar as CalendarIcon,
@@ -30,7 +27,7 @@ import {
   Cat,
   MapPin,
   Star,
-  User,
+  Loader2,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -47,12 +44,13 @@ const appointmentTypes = [
   { id: 'followup', label: 'Follow-up', description: 'Post-treatment checkup' },
 ]
 
-const timeSlots = [
+const fallbackSlots = [
   '09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
   '14:00', '14:30', '15:00', '15:30', '16:00', '16:30',
 ]
 
 export function AppointmentWizard({ onComplete, onCancel }: AppointmentWizardProps) {
+  const { user } = useAuth()
   const [step, setStep] = useState(1)
   const [selectedPet, setSelectedPet] = useState<string>('')
   const [selectedType, setSelectedType] = useState<string>('')
@@ -61,53 +59,87 @@ export function AppointmentWizard({ onComplete, onCancel }: AppointmentWizardPro
   const [selectedDate, setSelectedDate] = useState<Date>()
   const [selectedTime, setSelectedTime] = useState<string>('')
   const [notes, setNotes] = useState('')
+  const [submitting, setSubmitting] = useState(false)
 
-  const ownerPets = pets.filter((p) => p.ownerId === 'o1')
-  const filteredVets = selectedBranch
-    ? veterinarians.filter((v) => v.branchId === selectedBranch)
-    : veterinarians
+  const [ownerPets, setOwnerPets] = useState<Pet[]>([])
+  const [branches, setBranches] = useState<Branch[]>([])
+  const [vets, setVets] = useState<Veterinarian[]>([])
+  const [availableSlots, setAvailableSlots] = useState<string[]>(fallbackSlots)
+  const [loadingPets, setLoadingPets] = useState(false)
+  const [loadingVets, setLoadingVets] = useState(false)
+  const [loadingSlots, setLoadingSlots] = useState(false)
+
+  useEffect(() => {
+    if (!user) return
+    setLoadingPets(true)
+    Promise.all([
+      petApi.list(user.userId),
+      branchApi.list(),
+    ]).then(([pets, branchList]) => {
+      setOwnerPets(pets)
+      setBranches(branchList)
+    }).catch(console.error).finally(() => setLoadingPets(false))
+  }, [user])
+
+  useEffect(() => {
+    if (!selectedBranch) return
+    setLoadingVets(true)
+    setSelectedVet('')
+    vetApi.list({ branch_id: selectedBranch })
+      .then(setVets)
+      .catch(console.error)
+      .finally(() => setLoadingVets(false))
+  }, [selectedBranch])
+
+  useEffect(() => {
+    if (!selectedVet || !selectedDate) return
+    const dateStr = selectedDate.toISOString().slice(0, 10)
+    setLoadingSlots(true)
+    setSelectedTime('')
+    vetApi.availableSlots(selectedVet, dateStr)
+      .then((slots) => setAvailableSlots(slots.length > 0 ? slots : fallbackSlots))
+      .catch(() => setAvailableSlots(fallbackSlots))
+      .finally(() => setLoadingSlots(false))
+  }, [selectedVet, selectedDate])
 
   const canProceed = () => {
     switch (step) {
-      case 1:
-        return selectedPet && selectedType
-      case 2:
-        return selectedBranch && selectedVet
-      case 3:
-        return selectedDate && selectedTime
-      case 4:
-        return true
-      default:
-        return false
+      case 1: return selectedPet && selectedType
+      case 2: return selectedBranch && selectedVet
+      case 3: return selectedDate && selectedTime
+      case 4: return true
+      default: return false
     }
   }
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (step < 4 && canProceed()) {
       setStep(step + 1)
     } else if (step === 4) {
-      // Submit appointment
-      console.log('[v0] Appointment created:', {
-        petId: selectedPet,
-        type: selectedType,
-        branchId: selectedBranch,
-        vetId: selectedVet,
-        date: selectedDate,
-        time: selectedTime,
-        notes,
-      })
-      onComplete()
+      if (!selectedDate) return
+      setSubmitting(true)
+      try {
+        const dateStr = selectedDate.toISOString().slice(0, 10)
+        await appointmentApi.book({
+          date_time: `${dateStr} ${selectedTime}:00`,
+          pet_id: Number(selectedPet),
+          vet_id: Number(selectedVet),
+        })
+        onComplete()
+      } catch (e) {
+        console.error('[AppointmentWizard] booking error:', e)
+      } finally {
+        setSubmitting(false)
+      }
     }
   }
 
   const handleBack = () => {
-    if (step > 1) {
-      setStep(step - 1)
-    }
+    if (step > 1) setStep(step - 1)
   }
 
   const selectedPetData = ownerPets.find((p) => p.id === selectedPet)
-  const selectedVetData = veterinarians.find((v) => v.id === selectedVet)
+  const selectedVetData = vets.find((v) => v.id === selectedVet)
   const selectedBranchData = branches.find((b) => b.id === selectedBranch)
   const selectedTypeData = appointmentTypes.find((t) => t.id === selectedType)
 
@@ -120,22 +152,13 @@ export function AppointmentWizard({ onComplete, onCancel }: AppointmentWizardPro
             <div
               className={cn(
                 'flex items-center justify-center w-10 h-10 rounded-full font-medium transition-colors',
-                s < step
-                  ? 'bg-primary text-primary-foreground'
-                  : s === step
-                  ? 'bg-primary text-primary-foreground'
-                  : 'bg-muted text-muted-foreground'
+                s <= step ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
               )}
             >
               {s < step ? <Check className="w-5 h-5" /> : s}
             </div>
             {s < 4 && (
-              <div
-                className={cn(
-                  'w-16 md:w-24 h-1 mx-2',
-                  s < step ? 'bg-primary' : 'bg-muted'
-                )}
-              />
+              <div className={cn('w-16 md:w-24 h-1 mx-2', s < step ? 'bg-primary' : 'bg-muted')} />
             )}
           </div>
         ))}
@@ -162,37 +185,44 @@ export function AppointmentWizard({ onComplete, onCancel }: AppointmentWizardPro
             <div className="space-y-6">
               <div className="space-y-3">
                 <Label>Select Pet</Label>
-                <div className="grid grid-cols-2 gap-3">
-                  {ownerPets.map((pet) => {
-                    const Icon = pet.species === 'dog' ? Dog : Cat
-                    return (
-                      <button
-                        key={pet.id}
-                        onClick={() => setSelectedPet(pet.id)}
-                        className={cn(
-                          'flex items-center gap-3 p-4 rounded-lg border text-left transition-colors',
-                          selectedPet === pet.id
-                            ? 'border-primary bg-primary/5'
-                            : 'hover:bg-muted/50'
-                        )}
-                      >
-                        <Avatar className="w-12 h-12 rounded-xl">
-                          <AvatarImage src={pet.imageUrl} alt={pet.name} className="object-cover" />
-                          <AvatarFallback className="rounded-xl bg-muted">
-                            <Icon className="w-6 h-6 text-muted-foreground" />
-                          </AvatarFallback>
-                        </Avatar>
-                        <div>
-                          <p className="font-medium">{pet.name}</p>
-                          <p className="text-sm text-muted-foreground">{pet.breed}</p>
-                        </div>
-                        {selectedPet === pet.id && (
-                          <Check className="w-5 h-5 text-primary ml-auto" />
-                        )}
-                      </button>
-                    )
-                  })}
-                </div>
+                {loadingPets ? (
+                  <div className="flex justify-center py-8">
+                    <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                  </div>
+                ) : ownerPets.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-4">
+                    No pets found. Add a pet first.
+                  </p>
+                ) : (
+                  <div className="grid grid-cols-2 gap-3">
+                    {ownerPets.map((pet) => {
+                      const Icon = pet.species === 'dog' ? Dog : Cat
+                      return (
+                        <button
+                          key={pet.id}
+                          onClick={() => setSelectedPet(pet.id)}
+                          className={cn(
+                            'flex items-center gap-3 p-4 rounded-lg border text-left transition-colors',
+                            selectedPet === pet.id ? 'border-primary bg-primary/5' : 'hover:bg-muted/50'
+                          )}
+                        >
+                          <Avatar className="w-12 h-12 rounded-xl">
+                            <AvatarFallback className="rounded-xl bg-muted">
+                              <Icon className="w-6 h-6 text-muted-foreground" />
+                            </AvatarFallback>
+                          </Avatar>
+                          <div>
+                            <p className="font-medium">{pet.name}</p>
+                            <p className="text-sm text-muted-foreground">{pet.breed}</p>
+                          </div>
+                          {selectedPet === pet.id && (
+                            <Check className="w-5 h-5 text-primary ml-auto" />
+                          )}
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
               </div>
 
               <div className="space-y-3">
@@ -204,16 +234,12 @@ export function AppointmentWizard({ onComplete, onCancel }: AppointmentWizardPro
                       onClick={() => setSelectedType(type.id)}
                       className={cn(
                         'flex flex-col p-4 rounded-lg border text-left transition-colors',
-                        selectedType === type.id
-                          ? 'border-primary bg-primary/5'
-                          : 'hover:bg-muted/50'
+                        selectedType === type.id ? 'border-primary bg-primary/5' : 'hover:bg-muted/50'
                       )}
                     >
                       <div className="flex items-center justify-between">
                         <p className="font-medium">{type.label}</p>
-                        {selectedType === type.id && (
-                          <Check className="w-5 h-5 text-primary" />
-                        )}
+                        {selectedType === type.id && <Check className="w-5 h-5 text-primary" />}
                       </div>
                       <p className="text-sm text-muted-foreground mt-1">{type.description}</p>
                     </button>
@@ -247,51 +273,51 @@ export function AppointmentWizard({ onComplete, onCancel }: AppointmentWizardPro
 
               <div className="space-y-3">
                 <Label>Select Veterinarian</Label>
-                <div className="space-y-3">
-                  {filteredVets.map((vet) => (
-                    <button
-                      key={vet.id}
-                      onClick={() => setSelectedVet(vet.id)}
-                      disabled={!vet.available}
-                      className={cn(
-                        'flex items-center gap-4 w-full p-4 rounded-lg border text-left transition-colors',
-                        selectedVet === vet.id
-                          ? 'border-primary bg-primary/5'
-                          : vet.available
-                          ? 'hover:bg-muted/50'
-                          : 'opacity-50 cursor-not-allowed'
-                      )}
-                    >
-                      <Avatar className="w-12 h-12">
-                        <AvatarImage src={vet.avatar} alt={vet.name} />
-                        <AvatarFallback className="bg-primary/10 text-primary">
-                          {vet.name.split(' ').map((n) => n[0]).join('')}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1">
-                        <p className="font-medium">{vet.name}</p>
-                        <p className="text-sm text-muted-foreground">{vet.specialization}</p>
-                        <div className="flex items-center gap-2 mt-1">
-                          <Star className="w-3 h-3 fill-warning text-warning" />
-                          <span className="text-xs">{vet.rating}</span>
-                          <span className="text-xs text-muted-foreground">•</span>
-                          <span className="text-xs text-muted-foreground">{vet.branchName}</span>
+                {!selectedBranch ? (
+                  <p className="text-sm text-muted-foreground text-center py-4">
+                    Select a branch first to see available veterinarians.
+                  </p>
+                ) : loadingVets ? (
+                  <div className="flex justify-center py-8">
+                    <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                  </div>
+                ) : vets.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-4">
+                    No veterinarians available at this branch.
+                  </p>
+                ) : (
+                  <div className="space-y-3">
+                    {vets.map((vet) => (
+                      <button
+                        key={vet.id}
+                        onClick={() => setSelectedVet(vet.id)}
+                        className={cn(
+                          'flex items-center gap-4 w-full p-4 rounded-lg border text-left transition-colors',
+                          selectedVet === vet.id ? 'border-primary bg-primary/5' : 'hover:bg-muted/50'
+                        )}
+                      >
+                        <Avatar className="w-12 h-12">
+                          <AvatarFallback className="bg-primary/10 text-primary">
+                            {vet.name.split(' ').map((n) => n[0]).join('')}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1">
+                          <p className="font-medium">{vet.name}</p>
+                          <p className="text-sm text-muted-foreground">{vet.specialization}</p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <Star className="w-3 h-3 fill-warning text-warning" />
+                            <span className="text-xs">{vet.rating ? vet.rating.toFixed(1) : '–'}</span>
+                            <span className="text-xs text-muted-foreground">•</span>
+                            <span className="text-xs text-muted-foreground">{vet.branchName}</span>
+                          </div>
                         </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Badge
-                          variant={vet.available ? 'default' : 'secondary'}
-                          className={cn(vet.available && 'bg-primary/10 text-primary border-0')}
-                        >
-                          {vet.available ? 'Available' : 'Unavailable'}
-                        </Badge>
                         {selectedVet === vet.id && (
                           <Check className="w-5 h-5 text-primary" />
                         )}
-                      </div>
-                    </button>
-                  ))}
-                </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -312,23 +338,29 @@ export function AppointmentWizard({ onComplete, onCancel }: AppointmentWizardPro
 
               <div className="space-y-3">
                 <Label>Select Time</Label>
-                <div className="grid grid-cols-3 gap-2">
-                  {timeSlots.map((time) => (
-                    <button
-                      key={time}
-                      onClick={() => setSelectedTime(time)}
-                      className={cn(
-                        'flex items-center justify-center gap-2 p-3 rounded-lg border transition-colors',
-                        selectedTime === time
-                          ? 'border-primary bg-primary text-primary-foreground'
-                          : 'hover:bg-muted/50'
-                      )}
-                    >
-                      <Clock className="w-4 h-4" />
-                      {time}
-                    </button>
-                  ))}
-                </div>
+                {loadingSlots ? (
+                  <div className="flex justify-center py-8">
+                    <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-3 gap-2">
+                    {availableSlots.map((time) => (
+                      <button
+                        key={time}
+                        onClick={() => setSelectedTime(time)}
+                        className={cn(
+                          'flex items-center justify-center gap-2 p-3 rounded-lg border transition-colors',
+                          selectedTime === time
+                            ? 'border-primary bg-primary text-primary-foreground'
+                            : 'hover:bg-muted/50'
+                        )}
+                      >
+                        <Clock className="w-4 h-4" />
+                        {time}
+                      </button>
+                    ))}
+                  </div>
+                )}
 
                 <div className="space-y-2 mt-4">
                   <Label>Additional Notes (Optional)</Label>
@@ -353,7 +385,6 @@ export function AppointmentWizard({ onComplete, onCancel }: AppointmentWizardPro
                     {selectedPetData && (
                       <div className="flex items-center gap-3">
                         <Avatar className="w-10 h-10 rounded-lg">
-                          <AvatarImage src={selectedPetData.imageUrl} alt={selectedPetData.name} className="object-cover" />
                           <AvatarFallback className="rounded-lg bg-muted">
                             {selectedPetData.species === 'dog' ? (
                               <Dog className="w-5 h-5 text-muted-foreground" />
@@ -387,7 +418,6 @@ export function AppointmentWizard({ onComplete, onCancel }: AppointmentWizardPro
                     {selectedVetData && (
                       <div className="flex items-center gap-3">
                         <Avatar className="w-10 h-10">
-                          <AvatarImage src={selectedVetData.avatar} alt={selectedVetData.name} />
                           <AvatarFallback className="bg-primary/10 text-primary">
                             {selectedVetData.name.split(' ').map((n) => n[0]).join('')}
                           </AvatarFallback>
@@ -402,7 +432,7 @@ export function AppointmentWizard({ onComplete, onCancel }: AppointmentWizardPro
 
                   <div className="p-4 rounded-lg bg-muted/50">
                     <p className="text-sm text-muted-foreground mb-2">Date & Time</p>
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-4 flex-wrap">
                       <div className="flex items-center gap-2">
                         <CalendarIcon className="w-4 h-4 text-primary" />
                         <span className="font-medium">
@@ -449,13 +479,24 @@ export function AppointmentWizard({ onComplete, onCancel }: AppointmentWizardPro
 
       {/* Navigation Buttons */}
       <div className="flex justify-between">
-        <Button variant="outline" onClick={step === 1 ? onCancel : handleBack}>
+        <Button variant="outline" onClick={step === 1 ? onCancel : handleBack} disabled={submitting}>
           <ArrowLeft className="w-4 h-4 mr-2" />
           {step === 1 ? 'Cancel' : 'Back'}
         </Button>
-        <Button onClick={handleNext} disabled={!canProceed()}>
-          {step === 4 ? 'Confirm Booking' : 'Continue'}
-          {step < 4 && <ArrowRight className="w-4 h-4 ml-2" />}
+        <Button onClick={handleNext} disabled={!canProceed() || submitting}>
+          {submitting ? (
+            <>
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              Booking...
+            </>
+          ) : step === 4 ? (
+            'Confirm Booking'
+          ) : (
+            <>
+              Continue
+              <ArrowRight className="w-4 h-4 ml-2" />
+            </>
+          )}
         </Button>
       </div>
     </div>
