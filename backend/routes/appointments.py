@@ -60,9 +60,11 @@ def vet_appointments():
     try:
         vet_id = request.args.get("vet_id") or g.user.get("user_id")
         date = request.args.get("date")
-        if not date:
-            return error("date parameter required (YYYY-MM-DD)", 400)
-        appointments = AppointmentModel.list_by_vet_date(vet_id, date)
+        appointments = (
+            AppointmentModel.list_by_vet_date(vet_id, date)
+            if date
+            else AppointmentModel.list_by_vet(vet_id)
+        )
         return success(appointments)
     except Exception as exc:
         logger.error("vet_appointments error: %s", exc)

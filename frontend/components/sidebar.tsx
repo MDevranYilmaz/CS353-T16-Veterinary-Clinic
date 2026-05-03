@@ -14,6 +14,7 @@ import {
   PawPrint,
   ClipboardList,
   ArrowLeftRight,
+  Syringe,
   ChevronLeft,
   ChevronRight,
   LogOut,
@@ -44,6 +45,7 @@ const roleNavItems: Record<UserRole, { id: string; label: string; icon: React.El
     { id: 'schedule', label: 'My Schedule', icon: Calendar },
     { id: 'patients', label: 'Patients', icon: PawPrint },
     { id: 'vaccinations', label: 'Vaccinations', icon: Stethoscope },
+    { id: 'vaccination-plans', label: 'Vaccination Plans', icon: Syringe },
     { id: 'referrals', label: 'Referrals', icon: ArrowLeftRight },
   ],
   manager: [

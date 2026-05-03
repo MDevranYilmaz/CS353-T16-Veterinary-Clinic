@@ -359,8 +359,10 @@ export const appointmentApi = {
     const items = data?.items ?? data ?? []
     return items.map(normalizeAppointment)
   },
-  listByVet: async (vetId: number | string, date: string): Promise<Appointment[]> => {
-    const data = await get<any>(`/appointments/vet?vet_id=${vetId}&date=${date}`)
+  listByVet: async (vetId: number | string, date?: string): Promise<Appointment[]> => {
+    const params = new URLSearchParams({ vet_id: String(vetId) })
+    if (date) params.set('date', date)
+    const data = await get<any>(`/appointments/vet?${params}`)
     // Backend may return either an array or an object { appointments: [...] }
     let items: any[] = []
     if (Array.isArray(data)) items = data
@@ -550,7 +552,7 @@ export const vaccinationPlanApi = {
     const params = new URLSearchParams()
     if (species) params.set('species', species)
     if (breed) params.set('breed', breed)
-    return get<any[]>(`/vaccination-plans?${params}`)
+    return get<{ plans: VaccinationPlan[] }>(`/vaccination-plans?${params}`).then((data) => data.plans || [])
   },
   get: (planId: number | string) =>
     get<any>(`/vaccination-plans/${planId}`),
@@ -573,14 +575,14 @@ export const vaccinationPlanApi = {
 
   // Get pet schedule and status
   getPetSchedule: (petId: number | string) =>
-    get<any>(`/vaccination-plans/pets/${petId}/schedule`),
+    get<{ schedule: any[] }>(`/vaccination-plans/pets/${petId}/schedule`).then((data) => data.schedule || []),
   getApplicablePlans: (petId: number | string) =>
-    get<any>(`/vaccination-plans/pets/${petId}/applicable`),
+    get<{ plans: any[] }>(`/vaccination-plans/pets/${petId}/applicable`).then((data) => data.plans || []),
   getOverdue: (petId: number | string) =>
-    get<any>(`/vaccination-plans/pets/${petId}/overdue`),
+    get<{ overdue: any[] }>(`/vaccination-plans/pets/${petId}/overdue`).then((data) => data.overdue || []),
   getUpcoming: (petId: number | string, days?: number) => {
     const params = new URLSearchParams()
     if (days) params.set('days', String(days))
-    return get<any>(`/vaccination-plans/pets/${petId}/upcoming?${params}`)
+    return get<{ upcoming: any[] }>(`/vaccination-plans/pets/${petId}/upcoming?${params}`).then((data) => data.upcoming || [])
   },
 }

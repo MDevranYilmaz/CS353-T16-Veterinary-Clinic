@@ -201,7 +201,7 @@ CREATE OR REPLACE VIEW PetVaccinationSchedule AS
         p.breed,
         p.gender,
         p.birth_date,
-        vp.plan_id,
+        pvp.plan_id,
         vp_table.plan_name,
         vpi.item_id,
         vpi.vaccine_barcode,

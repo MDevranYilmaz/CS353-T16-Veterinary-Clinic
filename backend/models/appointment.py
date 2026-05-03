@@ -49,6 +49,24 @@ class AppointmentModel:
             return cur.fetchall()
 
     @staticmethod
+    def list_by_vet(vet_id: int):
+        with DBContext() as (conn, cur):
+            cur.execute(
+                """
+                SELECT a.*, p.name AS pet_name, p.breed, p.allergies,
+                       uo.full_name AS owner_name, uo.phone AS owner_phone
+                FROM Appointment a
+                JOIN Pet p ON p.pet_id = a.pet_id
+                JOIN Pet_Owner po ON po.user_id = p.owner_id
+                JOIN User uo ON uo.user_id = po.user_id
+                WHERE a.vet_id = %s
+                ORDER BY a.date_time DESC
+                """,
+                (vet_id,),
+            )
+            return cur.fetchall()
+
+    @staticmethod
     def list_by_vet_date(vet_id: int, date: str):
         # Compute UTC range for the provided local (Istanbul) date
         from datetime import datetime

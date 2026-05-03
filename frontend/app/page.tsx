@@ -15,6 +15,7 @@ import { AddPetForm } from '@/components/add-pet-form'
 import { MedicalRecords } from '@/components/medical-records'
 import { EvaluationModal } from '@/components/evaluation-modal'
 import { VetSchedule } from '@/components/vet-schedule'
+import { VaccinationPlansTab } from '@/components/vaccination-plans-tab'
 import { InventoryTable } from '@/components/inventory-table'
 import { ReferralModal } from '@/components/referral-modal'
 import {
@@ -110,8 +111,7 @@ export default function VetClinicApp() {
   useEffect(() => {
     if (!user || user.role !== 'vet' || currentView !== 'patients') return
     setRecordsLoading(true)
-    const today = new Date().toISOString().slice(0, 10)
-    appointmentApi.listByVet(user.userId, today)
+    appointmentApi.listByVet(user.userId)
       .then(async (appts) => {
         const petIds = [...new Set(appts.map((a) => a.petId))]
         const petsData = await Promise.all(petIds.map((id) => petApi.get(id)))
@@ -396,9 +396,9 @@ export default function VetClinicApp() {
                 <Card>
                   <CardContent className="flex flex-col items-center justify-center py-16 text-center">
                     <Syringe className="w-12 h-12 text-muted-foreground/30 mb-3" />
-                    <p className="font-medium">No patients today</p>
+                    <p className="font-medium">No patients found</p>
                     <p className="text-sm text-muted-foreground mt-1">
-                      Records appear for pets you have appointments with today.
+                      Records appear for pets you have treated or scheduled with.
                     </p>
                   </CardContent>
                 </Card>
@@ -432,6 +432,22 @@ export default function VetClinicApp() {
                 <VetDashboard onNavigate={handleViewChange} vaccinationsOnly />
                 <OverdueVaccinationsChart />
               </div>
+            </div>
+          )
+
+        case 'vaccination-plans':
+          return (
+            <div className="space-y-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h1 className="text-2xl font-bold">Vaccination Plans</h1>
+                  <p className="text-muted-foreground">Create and manage vaccination plans for different species and breeds</p>
+                </div>
+                <Button variant="outline" onClick={() => handleViewChange('dashboard')}>
+                  <ArrowLeft className="w-4 h-4 mr-2" />Back to Dashboard
+                </Button>
+              </div>
+              <VaccinationPlansTab />
             </div>
           )
 
