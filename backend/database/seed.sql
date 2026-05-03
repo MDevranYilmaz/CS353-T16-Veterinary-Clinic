@@ -39,20 +39,20 @@ INSERT INTO Branch (branch_id, name, address, phone_number) VALUES
 -- -------------------------
 INSERT INTO User (user_id, full_name, email, phone, password_hash) VALUES
 -- Vets
-(1,  'Dr. Alice Johnson',   'alice@vetclinic.com',    '555-1001', 'pbkdf2:sha256:600000$aBcDeFgHiJ$1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef'),
-(2,  'Dr. Bob Martinez',    'bob@vetclinic.com',      '555-1002', 'pbkdf2:sha256:600000$aBcDeFgHiJ$1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef'),
-(3,  'Dr. Carol Lee',       'carol@vetclinic.com',    '555-1003', 'pbkdf2:sha256:600000$aBcDeFgHiJ$1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef'),
-(4,  'Dr. David Kim',       'david@vetclinic.com',    '555-1004', 'pbkdf2:sha256:600000$aBcDeFgHiJ$1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef'),
-(5,  'Dr. Eva Patel',       'eva@vetclinic.com',      '555-1005', 'pbkdf2:sha256:600000$aBcDeFgHiJ$1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef'),
+(1,  'Dr. Alice Johnson',   'alice@vetclinic.com',    '555-1001', 'scrypt:32768:8:1$EcLroY7QTNDBb7R9$c546a06fb5cb872cdf30173657b17941ffb9e88939d1fe45da710bfc5632996a34494339eb94756caa3dd3f4a3c8b2cd30dd202f87d1ec873aa99c0f64ff94f8'),
+(2,  'Dr. Bob Martinez',    'bob@vetclinic.com',      '555-1002', 'scrypt:32768:8:1$EcLroY7QTNDBb7R9$c546a06fb5cb872cdf30173657b17941ffb9e88939d1fe45da710bfc5632996a34494339eb94756caa3dd3f4a3c8b2cd30dd202f87d1ec873aa99c0f64ff94f8'),
+(3,  'Dr. Carol Lee',       'carol@vetclinic.com',    '555-1003', 'scrypt:32768:8:1$EcLroY7QTNDBb7R9$c546a06fb5cb872cdf30173657b17941ffb9e88939d1fe45da710bfc5632996a34494339eb94756caa3dd3f4a3c8b2cd30dd202f87d1ec873aa99c0f64ff94f8'),
+(4,  'Dr. David Kim',       'david@vetclinic.com',    '555-1004', 'scrypt:32768:8:1$EcLroY7QTNDBb7R9$c546a06fb5cb872cdf30173657b17941ffb9e88939d1fe45da710bfc5632996a34494339eb94756caa3dd3f4a3c8b2cd30dd202f87d1ec873aa99c0f64ff94f8'),
+(5,  'Dr. Eva Patel',       'eva@vetclinic.com',      '555-1005', 'scrypt:32768:8:1$EcLroY7QTNDBb7R9$c546a06fb5cb872cdf30173657b17941ffb9e88939d1fe45da710bfc5632996a34494339eb94756caa3dd3f4a3c8b2cd30dd202f87d1ec873aa99c0f64ff94f8'),
 -- Managers
-(6,  'Manager Frank Brown', 'frank@vetclinic.com',    '555-1006', 'pbkdf2:sha256:600000$aBcDeFgHiJ$1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef'),
-(7,  'Manager Grace Wilson','grace@vetclinic.com',    '555-1007', 'pbkdf2:sha256:600000$aBcDeFgHiJ$1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef'),
+(6,  'Manager Frank Brown', 'frank@vetclinic.com',    '555-1006', 'scrypt:32768:8:1$EcLroY7QTNDBb7R9$c546a06fb5cb872cdf30173657b17941ffb9e88939d1fe45da710bfc5632996a34494339eb94756caa3dd3f4a3c8b2cd30dd202f87d1ec873aa99c0f64ff94f8'),
+(7,  'Manager Grace Wilson','grace@vetclinic.com',    '555-1007', 'scrypt:32768:8:1$EcLroY7QTNDBb7R9$c546a06fb5cb872cdf30173657b17941ffb9e88939d1fe45da710bfc5632996a34494339eb94756caa3dd3f4a3c8b2cd30dd202f87d1ec873aa99c0f64ff94f8'),
 -- Pet Owners
-(8,  'Henry Clark',         'henry@example.com',      '555-2001', 'pbkdf2:sha256:600000$aBcDeFgHiJ$1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef'),
-(9,  'Irene Davis',         'irene@example.com',      '555-2002', 'pbkdf2:sha256:600000$aBcDeFgHiJ$1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef'),
-(10, 'Jack Evans',          'jack@example.com',       '555-2003', 'pbkdf2:sha256:600000$aBcDeFgHiJ$1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef'),
-(11, 'Karen Foster',        'karen@example.com',      '555-2004', 'pbkdf2:sha256:600000$aBcDeFgHiJ$1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef'),
-(12, 'Leo Garcia',          'leo@example.com',        '555-2005', 'pbkdf2:sha256:600000$aBcDeFgHiJ$1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef');
+(8,  'Henry Clark',         'henry@example.com',      '555-2001', 'scrypt:32768:8:1$EcLroY7QTNDBb7R9$c546a06fb5cb872cdf30173657b17941ffb9e88939d1fe45da710bfc5632996a34494339eb94756caa3dd3f4a3c8b2cd30dd202f87d1ec873aa99c0f64ff94f8'),
+(9,  'Irene Davis',         'irene@example.com',      '555-2002', 'scrypt:32768:8:1$EcLroY7QTNDBb7R9$c546a06fb5cb872cdf30173657b17941ffb9e88939d1fe45da710bfc5632996a34494339eb94756caa3dd3f4a3c8b2cd30dd202f87d1ec873aa99c0f64ff94f8'),
+(10, 'Jack Evans',          'jack@example.com',       '555-2003', 'scrypt:32768:8:1$EcLroY7QTNDBb7R9$c546a06fb5cb872cdf30173657b17941ffb9e88939d1fe45da710bfc5632996a34494339eb94756caa3dd3f4a3c8b2cd30dd202f87d1ec873aa99c0f64ff94f8'),
+(11, 'Karen Foster',        'karen@example.com',      '555-2004', 'scrypt:32768:8:1$EcLroY7QTNDBb7R9$c546a06fb5cb872cdf30173657b17941ffb9e88939d1fe45da710bfc5632996a34494339eb94756caa3dd3f4a3c8b2cd30dd202f87d1ec873aa99c0f64ff94f8'),
+(12, 'Leo Garcia',          'leo@example.com',        '555-2005', 'scrypt:32768:8:1$EcLroY7QTNDBb7R9$c546a06fb5cb872cdf30173657b17941ffb9e88939d1fe45da710bfc5632996a34494339eb94756caa3dd3f4a3c8b2cd30dd202f87d1ec873aa99c0f64ff94f8');
 
 -- -------------------------
 -- Veterinarians (5)
