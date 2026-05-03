@@ -40,7 +40,7 @@ const statusColors: Record<string, string> = {
   cancelled: 'bg-muted text-muted-foreground border-0',
 }
 
-export function VetSchedule() {
+export function VetSchedule({ onViewRecords }: { onViewRecords?: (petId: string) => void } = {}) {
   const { user } = useAuth()
   const [weekStart, setWeekStart] = useState<Date>(() => getMonday(new Date()))
   const [schedule, setSchedule] = useState<Record<string, Appointment[]>>({})
@@ -66,6 +66,31 @@ export function VetSchedule() {
       })
       .catch(console.error)
       .finally(() => setLoading(false))
+  }, [user, weekStart])
+
+  // Reload schedule (used by event listener)
+  const reloadSchedule = async () => {
+    if (!user) return
+    setLoading(true)
+    try {
+      const dateStrs = weekDates.map(toDateStr)
+      const results = await Promise.all(dateStrs.map((date) => appointmentApi.listByVet(user.userId, date)))
+      const sched: Record<string, Appointment[]> = {}
+      dateStrs.forEach((date, i) => {
+        sched[date] = results[i]
+      })
+      setSchedule(sched)
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    const handler = () => reloadSchedule()
+    window.addEventListener('appointments:updated', handler)
+    return () => window.removeEventListener('appointments:updated', handler)
   }, [user, weekStart])
 
   const prevWeek = () => {
@@ -157,8 +182,9 @@ export function VetSchedule() {
                       .map((apt) => (
                         <div
                           key={apt.id}
+                          onClick={() => onViewRecords?.(apt.petId)}
                           className={cn(
-                            'flex items-center gap-3 p-3 rounded-lg border',
+                            'flex items-center gap-3 p-3 rounded-lg border cursor-pointer',
                             apt.status === 'completed' && 'opacity-60',
                             apt.status === 'cancelled' && 'opacity-40 line-through-text',
                           )}

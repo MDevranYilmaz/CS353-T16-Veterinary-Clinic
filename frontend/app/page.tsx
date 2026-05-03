@@ -10,10 +10,12 @@ import { ManagerDashboard } from '@/components/dashboards/manager-dashboard'
 import { AppointmentWizard } from '@/components/appointment-wizard'
 import { VetFinder } from '@/components/vet-finder'
 import { PetCard } from '@/components/pet-card'
+import { VetPatientRow } from '@/components/vet-patient-row'
 import { AddPetForm } from '@/components/add-pet-form'
 import { MedicalRecords } from '@/components/medical-records'
 import { EvaluationModal } from '@/components/evaluation-modal'
 import { VetSchedule } from '@/components/vet-schedule'
+import { VaccinationPlansTab } from '@/components/vaccination-plans-tab'
 import { InventoryTable } from '@/components/inventory-table'
 import { ReferralModal } from '@/components/referral-modal'
 import {
@@ -95,12 +97,21 @@ export default function VetClinicApp() {
     }
   }
 
-  // Fetch vet records data when navigating to records view
+  const reloadOwnerAppointments = async () => {
+    if (!user) return
+    try {
+      const appts = await appointmentApi.listByOwner(user.userId)
+      setOwnerAppointments(appts)
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
+  // Fetch vet patients & records when navigating to Patients view
   useEffect(() => {
-    if (!user || user.role !== 'vet' || currentView !== 'records') return
+    if (!user || user.role !== 'vet' || currentView !== 'patients') return
     setRecordsLoading(true)
-    const today = new Date().toISOString().slice(0, 10)
-    appointmentApi.listByVet(user.userId, today)
+    appointmentApi.listByVet(user.userId)
       .then(async (appts) => {
         const petIds = [...new Set(appts.map((a) => a.petId))]
         const petsData = await Promise.all(petIds.map((id) => petApi.get(id)))
@@ -114,9 +125,17 @@ export default function VetClinicApp() {
       .finally(() => setRecordsLoading(false))
   }, [user, currentView])
 
-  const handleViewChange = (view: string) => {
+  const [initialRecordPetId, setInitialRecordPetId] = useState<string | null>(null)
+
+  const handleViewChange = (view: string, petId?: string) => {
     setCurrentView(view)
     setShowAppointmentWizard(false)
+    if (view === 'patients') setInitialRecordPetId(petId ?? null)
+  }
+
+  const handleLogout = () => {
+    logout()
+    setCurrentView('dashboard')
   }
 
   if (isLoading) {
@@ -146,6 +165,14 @@ export default function VetClinicApp() {
             onComplete={() => {
               setShowAppointmentWizard(false)
               setCurrentView('appointments')
+              // refresh appointments so new booking appears immediately
+              reloadOwnerAppointments()
+              // notify other parts of the app (e.g., vet schedule) to refresh
+              try {
+                window.dispatchEvent(new CustomEvent('appointments:updated'))
+              } catch (e) {
+                // ignore in non-browser environments
+              }
             }}
             onCancel={() => setShowAppointmentWizard(false)}
           />
@@ -355,15 +382,12 @@ export default function VetClinicApp() {
           return <VetDashboard onNavigate={handleViewChange} />
 
         case 'schedule':
-          return <VetSchedule />
+          return <VetSchedule onViewRecords={(petId) => handleViewChange('patients', petId)} />
 
         case 'patients':
-          return <VetDashboard onNavigate={handleViewChange} patientsOnly />
-
-        case 'records':
           return (
             <div className="space-y-6">
-              <h1 className="text-2xl font-bold">Patient Records</h1>
+              <h1 className="text-2xl font-bold">Patients</h1>
               {recordsLoading ? (
                 <div className="flex justify-center py-20">
                   <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -372,19 +396,30 @@ export default function VetClinicApp() {
                 <Card>
                   <CardContent className="flex flex-col items-center justify-center py-16 text-center">
                     <Syringe className="w-12 h-12 text-muted-foreground/30 mb-3" />
-                    <p className="font-medium">No patients today</p>
+                    <p className="font-medium">No patients found</p>
                     <p className="text-sm text-muted-foreground mt-1">
-                      Records appear for pets you have appointments with today.
+                      Records appear for pets you have treated or scheduled with.
                     </p>
                   </CardContent>
                 </Card>
+              ) : initialRecordPetId ? (
+                <div className="space-y-4">
+                  <MedicalRecords
+                    pets={vetPets}
+                    records={vetRecords}
+                    userRole="vet"
+                    initialPetId={initialRecordPetId ?? undefined}
+                    onRecordAdded={() => handleViewChange('patients')}
+                    showBackButton
+                    onBack={() => setInitialRecordPetId(null)}
+                  />
+                </div>
               ) : (
-                <MedicalRecords
-                  pets={vetPets}
-                  records={vetRecords}
-                  userRole="vet"
-                  onRecordAdded={() => handleViewChange('records')}
-                />
+                <div className="space-y-3">
+                  {vetPets.map((pet) => (
+                    <VetPatientRow key={pet.id} pet={pet} onViewRecords={(id) => handleViewChange('patients', id)} />
+                  ))}
+                </div>
               )}
             </div>
           )
@@ -397,6 +432,22 @@ export default function VetClinicApp() {
                 <VetDashboard onNavigate={handleViewChange} vaccinationsOnly />
                 <OverdueVaccinationsChart />
               </div>
+            </div>
+          )
+
+        case 'vaccination-plans':
+          return (
+            <div className="space-y-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h1 className="text-2xl font-bold">Vaccination Plans</h1>
+                  <p className="text-muted-foreground">Create and manage vaccination plans for different species and breeds</p>
+                </div>
+                <Button variant="outline" onClick={() => handleViewChange('dashboard')}>
+                  <ArrowLeft className="w-4 h-4 mr-2" />Back to Dashboard
+                </Button>
+              </div>
+              <VaccinationPlansTab />
             </div>
           )
 
@@ -482,6 +533,7 @@ export default function VetClinicApp() {
         currentView={currentView}
         onViewChange={handleViewChange}
         userName={user.fullName}
+        onLogout={handleLogout}
       />
 
       <main className="flex-1 overflow-auto">
@@ -511,7 +563,7 @@ export default function VetClinicApp() {
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
-                  onClick={logout}
+                  onClick={handleLogout}
                   className="text-destructive focus:text-destructive"
                 >
                   <LogOut className="w-4 h-4 mr-2" />

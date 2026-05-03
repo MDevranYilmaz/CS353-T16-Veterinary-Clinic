@@ -93,11 +93,19 @@ export function AppointmentWizard({ onComplete, onCancel }: AppointmentWizardPro
 
   useEffect(() => {
     if (!selectedVet || !selectedDate) return
-    const dateStr = selectedDate.toISOString().slice(0, 10)
+    // Use Istanbul date components so all bookings are unified to Europe/Istanbul
+    const dateStr = selectedDate.toLocaleDateString('en-CA', { timeZone: 'Europe/Istanbul' })
     setLoadingSlots(true)
     setSelectedTime('')
     vetApi.availableSlots(selectedVet, dateStr)
-      .then((slots) => setAvailableSlots(slots.length > 0 ? slots : fallbackSlots))
+      .then((slots) => {
+        let final = slots.length > 0 ? slots : fallbackSlots
+        // if user selected today, filter out past slots immediately
+        if (isSameDay(selectedDate, new Date())) {
+          final = final.filter((t) => !isSlotInPast(t))
+        }
+        setAvailableSlots(final)
+      })
       .catch(() => setAvailableSlots(fallbackSlots))
       .finally(() => setLoadingSlots(false))
   }, [selectedVet, selectedDate])
@@ -106,10 +114,25 @@ export function AppointmentWizard({ onComplete, onCancel }: AppointmentWizardPro
     switch (step) {
       case 1: return selectedPet && selectedType
       case 2: return selectedBranch && selectedVet
-      case 3: return selectedDate && selectedTime
+      case 3: return selectedDate && selectedTime && !isSlotInPast(selectedTime)
       case 4: return true
       default: return false
     }
+  }
+
+  const isSameDay = (d1?: Date, d2?: Date) => {
+    if (!d1 || !d2) return false
+    return d1.getFullYear() === d2.getFullYear() && d1.getMonth() === d2.getMonth() && d1.getDate() === d2.getDate()
+  }
+
+  const isSlotInPast = (time: string) => {
+    if (!selectedDate) return false
+    const now = new Date()
+    // Only consider past for today
+    if (!isSameDay(selectedDate, now)) return false
+    const [hh, mm] = time.split(':').map((s) => Number(s))
+    const slotDate = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate(), hh, mm, 0)
+    return slotDate.getTime() <= now.getTime()
   }
 
   const handleNext = async () => {
@@ -119,11 +142,14 @@ export function AppointmentWizard({ onComplete, onCancel }: AppointmentWizardPro
       if (!selectedDate) return
       setSubmitting(true)
       try {
-        const dateStr = selectedDate.toISOString().slice(0, 10)
+        // Use Istanbul date components so available slots query is for Europe/Istanbul
+        const dateStr = selectedDate.toLocaleDateString('en-CA', { timeZone: 'Europe/Istanbul' })
         await appointmentApi.book({
           date_time: `${dateStr} ${selectedTime}:00`,
           pet_id: Number(selectedPet),
           vet_id: Number(selectedVet),
+          type: selectedType,
+          notes: notes || undefined,
         })
         onComplete()
       } catch (e) {
@@ -331,7 +357,12 @@ export function AppointmentWizard({ onComplete, onCancel }: AppointmentWizardPro
                   mode="single"
                   selected={selectedDate}
                   onSelect={setSelectedDate}
-                  disabled={(date) => date < new Date()}
+                  disabled={(date) => {
+                    const today = new Date()
+                    today.setHours(0, 0, 0, 0)
+                    const d = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+                    return d < today
+                  }}
                   className="rounded-lg border p-3"
                 />
               </div>
@@ -344,21 +375,26 @@ export function AppointmentWizard({ onComplete, onCancel }: AppointmentWizardPro
                   </div>
                 ) : (
                   <div className="grid grid-cols-3 gap-2">
-                    {availableSlots.map((time) => (
-                      <button
-                        key={time}
-                        onClick={() => setSelectedTime(time)}
-                        className={cn(
-                          'flex items-center justify-center gap-2 p-3 rounded-lg border transition-colors',
-                          selectedTime === time
-                            ? 'border-primary bg-primary text-primary-foreground'
-                            : 'hover:bg-muted/50'
-                        )}
-                      >
-                        <Clock className="w-4 h-4" />
-                        {time}
-                      </button>
-                    ))}
+                    {availableSlots.map((time) => {
+                      const disabled = isSlotInPast(time)
+                      return (
+                        <button
+                          key={time}
+                          onClick={() => !disabled && setSelectedTime(time)}
+                          disabled={disabled}
+                          className={cn(
+                            'flex items-center justify-center gap-2 p-3 rounded-lg border transition-colors',
+                            disabled ? 'opacity-50 cursor-not-allowed' : '',
+                            selectedTime === time
+                              ? 'border-primary bg-primary text-primary-foreground'
+                              : 'hover:bg-muted/50'
+                          )}
+                        >
+                          <Clock className="w-4 h-4" />
+                          {time}
+                        </button>
+                      )
+                    })}
                   </div>
                 )}
 

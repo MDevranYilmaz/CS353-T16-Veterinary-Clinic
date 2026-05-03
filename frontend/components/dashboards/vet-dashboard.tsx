@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useAuth } from '@/lib/auth-context'
 import { appointmentApi, referralApi, vaccinationApi, inventoryApi } from '@/lib/api'
 import type { Appointment, Referral, VaccinationSchedule, Medicine } from '@/lib/types'
+import { VaccinationPlansTab } from '@/components/vaccination-plans-tab'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -23,11 +24,12 @@ interface VetDashboardProps {
   recordsOnly?: boolean
   vaccinationsOnly?: boolean
   referralsOnly?: boolean
+  vaccinationPlansOnly?: boolean
 }
 
 export function VetDashboard({
   onNavigate,
-  scheduleOnly, patientsOnly, recordsOnly, vaccinationsOnly, referralsOnly,
+  scheduleOnly, patientsOnly, recordsOnly, vaccinationsOnly, referralsOnly, vaccinationPlansOnly,
 }: VetDashboardProps) {
   const { user } = useAuth()
   const [appointments, setAppointments] = useState<Appointment[]>([])
@@ -63,6 +65,18 @@ export function VetDashboard({
   }
 
   useEffect(() => { loadData() }, [user])
+
+  useEffect(() => {
+    const handler = () => {
+      try {
+        loadData()
+      } catch (e) {
+        console.error('[VetDashboard] reload on event error:', e)
+      }
+    }
+    window.addEventListener('appointments:updated', handler)
+    return () => window.removeEventListener('appointments:updated', handler)
+  }, [user])
 
   const handleStatusUpdate = async (id: string, status: 'Completed' | 'Cancelled') => {
     try {
@@ -183,6 +197,10 @@ export function VetDashboard({
     )
   }
 
+  if (vaccinationPlansOnly) {
+    return <VaccinationPlansTab />
+  }
+
   // ── Full Dashboard ─────────────────────────────────────────────────────────
   return (
     <div className="space-y-8">
@@ -198,7 +216,10 @@ export function VetDashboard({
           <Button variant="outline" onClick={() => onNavigate('schedule')}>
             <Calendar className="w-4 h-4 mr-2" />View Schedule
           </Button>
-          <Button onClick={() => onNavigate('records')}>
+          <Button variant="outline" onClick={() => onNavigate('vaccination-plans')}>
+            <Syringe className="w-4 h-4 mr-2" />Vaccination Plans
+          </Button>
+          <Button onClick={() => onNavigate('patients')}>
             <ClipboardList className="w-4 h-4 mr-2" />Patient Records
           </Button>
         </div>
@@ -291,7 +312,7 @@ export function VetDashboard({
                                   size="sm"
                                   variant="outline"
                                   className="gap-1 h-7 text-xs"
-                                  onClick={() => onNavigate('records')}
+                                  onClick={() => onNavigate('patients')}
                                 >
                                   <Eye className="w-3 h-3" />Records
                                 </Button>

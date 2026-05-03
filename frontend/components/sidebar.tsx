@@ -14,6 +14,7 @@ import {
   PawPrint,
   ClipboardList,
   ArrowLeftRight,
+  Syringe,
   ChevronLeft,
   ChevronRight,
   LogOut,
@@ -28,6 +29,7 @@ interface SidebarProps {
   onViewChange: (view: string) => void
   userName: string
   userAvatar?: string
+  onLogout?: () => void
 }
 
 const roleNavItems: Record<UserRole, { id: string; label: string; icon: React.ElementType }[]> = {
@@ -42,8 +44,8 @@ const roleNavItems: Record<UserRole, { id: string; label: string; icon: React.El
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'schedule', label: 'My Schedule', icon: Calendar },
     { id: 'patients', label: 'Patients', icon: PawPrint },
-    { id: 'records', label: 'Medical Records', icon: ClipboardList },
     { id: 'vaccinations', label: 'Vaccinations', icon: Stethoscope },
+    { id: 'vaccination-plans', label: 'Vaccination Plans', icon: Syringe },
     { id: 'referrals', label: 'Referrals', icon: ArrowLeftRight },
   ],
   manager: [
@@ -56,7 +58,7 @@ const roleNavItems: Record<UserRole, { id: string; label: string; icon: React.El
   ],
 }
 
-export function Sidebar({ currentRole, currentView, onViewChange, userName, userAvatar }: SidebarProps) {
+export function Sidebar({ currentRole, currentView, onViewChange, userName, userAvatar, onLogout }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false)
   const navItems = roleNavItems[currentRole]
 
@@ -149,7 +151,12 @@ export function Sidebar({ currentRole, currentView, onViewChange, userName, user
               <Button variant="ghost" size="icon" className="w-8 h-8 text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent/50">
                 <Settings className="w-4 h-4" />
               </Button>
-              <Button variant="ghost" size="icon" className="w-8 h-8 text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent/50">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="w-8 h-8 text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 text-destructive hover:text-destructive"
+                onClick={onLogout}
+              >
                 <LogOut className="w-4 h-4" />
               </Button>
             </div>

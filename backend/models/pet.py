@@ -3,11 +3,11 @@ from database.connection import DBContext
 
 class PetModel:
     @staticmethod
-    def create(name, breed, birth_date, allergies, owner_id) -> int:
+    def create(name, breed, birth_date, allergies, owner_id, species=None, gender=None) -> int:
         with DBContext() as (conn, cur):
             cur.execute(
-                "INSERT INTO Pet (name, breed, birth_date, allergies, owner_id) VALUES (%s,%s,%s,%s,%s)",
-                (name, breed, birth_date, allergies, owner_id),
+                "INSERT INTO Pet (name, species, breed, gender, birth_date, allergies, owner_id) VALUES (%s,%s,%s,%s,%s,%s,%s)",
+                (name, species, breed, gender, birth_date, allergies, owner_id),
             )
             return cur.lastrowid
 

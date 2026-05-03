@@ -41,7 +41,7 @@ const speciesIcons: Record<string, React.ElementType> = {
 
 export function PetCard({ pet, onViewDetails, onBookAppointment, onViewRecords, compact }: PetCardProps) {
   const SpeciesIcon = speciesIcons[pet.species] || Dog
-  const hasAlerts = pet.allergies.length > 0 || pet.medicalAlerts.length > 0
+  const hasAlerts = (pet.medicalAlerts?.length || 0) > 0
 
   const getVaccinationBadge = () => {
     switch (pet.vaccinationStatus) {

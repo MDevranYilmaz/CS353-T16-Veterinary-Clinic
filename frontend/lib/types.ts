@@ -14,6 +14,7 @@ export interface Pet {
   name: string
   species: 'dog' | 'cat' | 'bird' | 'rabbit' | 'other'
   breed: string
+  gender: 'M' | 'F'
   age: number
   weight: number
   ownerId: string
@@ -155,4 +156,66 @@ export interface VaccinationSchedule {
   vaccineName: string
   dueDate: string
   status: 'scheduled' | 'completed' | 'overdue'
+}
+
+export interface VaccinationPlan {
+  plan_id: number
+  plan_name: string
+  species: string
+  breed?: string
+  description?: string
+  created_by?: number
+  created_by_name?: string
+  created_date?: string
+}
+
+export interface VaccinationPlanItem {
+  item_id: number
+  plan_id: number
+  vaccine_barcode: string
+  med_name: string
+  vac_type: string
+  age_weeks: number
+  sequence_number?: number
+  repeat_every_months?: number
+  gender_applicable?: 'M' | 'F'
+  notes?: string
+}
+
+export interface VaccinationScheduleItem {
+  vaccine_barcode: string
+  vaccine_name: string
+  type: 'Initial' | 'Booster'
+  recommended_date: string
+  last_date?: string
+  status: 'Upcoming' | 'Overdue'
+  sequence_number?: number
+  repeat_every_months?: number
+  notes?: string
+}
+
+export interface PetVaccinationScheduleItem {
+  pet_id: number
+  pet_name: string
+  vaccine_barcode: string
+  vaccine_name: string
+  vac_type: string
+  age_weeks: number
+  sequence_number?: number
+  repeat_every_months?: number | null
+  recommended_date: string
+  last_admin_date?: string | null
+  next_due_date?: string | null
+  vaccination_status: 'Administered' | 'Overdue' | 'Due Soon' | 'Upcoming' | 'Not Applicable'
+  gender_applicable?: 'M' | 'F' | null
+  notes?: string
+}
+
+export interface ApplicablePlan {
+  plan_id: number
+  plan_name: string
+  species: string
+  breed?: string
+  vaccine_count: number
+  created_by_name?: string
 }

@@ -1,4 +1,4 @@
-import type { Pet, Veterinarian, Appointment, Medicine, Branch, Invoice, Referral, MedicalRecord, VaccinationSchedule } from './types'
+import type { Pet, Veterinarian, Appointment, Medicine, Branch, Invoice, Referral, MedicalRecord, VaccinationSchedule, VaccinationPlan, VaccinationPlanItem, VaccinationScheduleItem } from './types'
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'
 
@@ -86,8 +86,34 @@ export function normalizeVet(v: any): Veterinarian {
 
 export function normalizeAppointment(a: any): Appointment {
   const dt: string = a.date_time || ''
-  const [date = '', timeFull = ''] = dt.split(' ')
-  const time = timeFull.slice(0, 5)
+  let date = ''
+  let time = ''
+
+  // Try to parse as a Date first (handles RFC1123 like "Sun, 03 May 2026 14:00:00 GMT" and ISO strings)
+  const parsed = Date.parse(dt)
+  if (!isNaN(parsed)) {
+    const d = new Date(parsed)
+    // Convert and display times in Europe/Istanbul timezone
+    try {
+      date = d.toLocaleDateString('en-CA', { timeZone: 'Europe/Istanbul' }) // YYYY-MM-DD
+      time = d.toLocaleTimeString('en-GB', { timeZone: 'Europe/Istanbul', hour12: false, hour: '2-digit', minute: '2-digit' }) // HH:MM
+    } catch (e) {
+      const year = d.getFullYear()
+      const month = String(d.getMonth() + 1).padStart(2, '0')
+      const day = String(d.getDate()).padStart(2, '0')
+      const hh = String(d.getHours()).padStart(2, '0')
+      const mm = String(d.getMinutes()).padStart(2, '0')
+      date = `${year}-${month}-${day}`
+      time = `${hh}:${mm}`
+    }
+  } else {
+    // Fallback parsing for DB-style "YYYY-MM-DD HH:MM:SS" or other simple formats
+    const parts = dt.split(' ')
+    date = parts[0] || ''
+    if (parts.length > 1 && parts[1]) time = parts[1].slice(0, 5)
+    else time = dt.slice(11, 16) || ''
+  }
+  
   const rawStatus = (a.status || '').toLowerCase() as string
   const statusMap: Record<string, Appointment['status']> = {
     scheduled: 'scheduled',
@@ -106,8 +132,8 @@ export function normalizeAppointment(a: any): Appointment {
     branchId: String(a.branch_id || ''),
     branchName: a.branch_name || '',
     date,
-    time,
-    type: 'checkup',
+    time: time || '--:--', // Fallback if time parsing fails
+    type: (a.type || a.appointment_type || 'checkup').toLowerCase(),
     status: statusMap[rawStatus] ?? 'scheduled',
     notes: a.notes,
   }
@@ -285,6 +311,10 @@ export const vetApi = {
 
 export const petApi = {
   list: async (owner_id: number | string): Promise<Pet[]> => {
+    if (!owner_id) {
+      console.warn('petApi.list called without owner_id; returning empty list')
+      return []
+    }
     const data = await get<any>(`/pets?owner_id=${owner_id}`)
     const items = data?.items ?? data ?? []
     return items.map(normalizePet)
@@ -300,10 +330,15 @@ export const petApi = {
     const items = data?.items ?? data ?? []
     return items.map(normalizeMedicalRecord)
   },
-  vaccinations: async (petId: number | string): Promise<VaccinationSchedule[]> => {
+  prescriptions: async (petId: number | string): Promise<any[]> => {
+    const data = await get<any>(`/pets/${petId}/prescriptions`)
+    const items = data?.items ?? data ?? []
+    return items
+  },
+  vaccinations: async (petId: number | string): Promise<any[]> => {
     const data = await get<any>(`/pets/${petId}/vaccinations`)
     const items = data?.items ?? data ?? []
-    return items.map(normalizeVaccination)
+    return items
   },
   referrals: async (petId: number | string): Promise<Referral[]> => {
     const data = await get<any>(`/pets/${petId}/referrals`)
@@ -316,15 +351,50 @@ export const petApi = {
 
 export const appointmentApi = {
   listByOwner: async (ownerId: number | string): Promise<Appointment[]> => {
+    if (!ownerId) {
+      console.warn('appointmentApi.listByOwner called without ownerId; returning empty list')
+      return []
+    }
     const data = await get<any>(`/appointments?owner_id=${ownerId}`)
     const items = data?.items ?? data ?? []
     return items.map(normalizeAppointment)
   },
-  listByVet: async (vetId: number | string, date: string): Promise<Appointment[]> => {
-    const data = await get<any>(`/appointments/vet?vet_id=${vetId}&date=${date}`)
-    return (Array.isArray(data) ? data : []).map(normalizeAppointment)
+  listByVet: async (vetId: number | string, date?: string): Promise<Appointment[]> => {
+    const params = new URLSearchParams({ vet_id: String(vetId) })
+    if (date) params.set('date', date)
+    const data = await get<any>(`/appointments/vet?${params}`)
+    // Backend may return either an array or an object { appointments: [...] }
+    let items: any[] = []
+    if (Array.isArray(data)) items = data
+    else if (data && Array.isArray(data.appointments)) items = data.appointments
+    else if (data && Array.isArray(data.data)) items = data.data
+    else {
+      console.warn('Unexpected /appointments/vet response shape', data)
+    }
+    if (items.length > 0) {
+      console.log('[API] First appointment raw data:', items[0])
+    }
+    return items.map(normalizeAppointment)
   },
-  book: (data: { date_time: string; pet_id: number; vet_id: number }) =>
+  listByPet: async (petId: number | string): Promise<Appointment[]> => {
+    const data = await get<any>(`/appointments?pet_id=${petId}`)
+    // Backend may return either an array or an object { appointments: [...] }
+    let items: any[] = []
+    if (Array.isArray(data)) items = data
+    else if (data && Array.isArray(data.appointments)) items = data.appointments
+    else if (data && Array.isArray(data.items)) items = data.items
+    else if (data && Array.isArray(data.data)) items = data.data
+    else if (data && typeof data === 'object') {
+      // try to extract any array value
+      const arr = Object.values(data).find((v) => Array.isArray(v))
+      if (Array.isArray(arr)) items = arr as any[]
+      else {
+        console.warn('Unexpected /appointments response shape for pet:', data)
+      }
+    }
+    return items.map(normalizeAppointment)
+  },
+  book: (data: { date_time: string; pet_id: number; vet_id: number; type?: string; notes?: string }) =>
     post<{ appointment_id: number }>('/appointments', data),
   updateStatus: (id: number | string, status: 'Scheduled' | 'Completed' | 'Cancelled') =>
     put<any>(`/appointments/${id}/status`, { status }),
@@ -334,6 +404,10 @@ export const appointmentApi = {
 
 export const billingApi = {
   listByOwner: async (ownerId: number | string): Promise<Invoice[]> => {
+    if (!ownerId) {
+      console.warn('billingApi.listByOwner called without ownerId; returning empty list')
+      return []
+    }
     const data = await get<any>(`/billing?owner_id=${ownerId}`)
     const items = data?.items ?? data ?? []
     return items.map(normalizeBill)
@@ -391,6 +465,9 @@ export const prescriptionApi = {
     expiration_date?: string
     medicines: { barcode_no: string; dosage: number; frequency: number }[]
   }) => post<{ prescription_id: number }>('/prescriptions', data),
+  get: async (prescriptionId: number | string): Promise<any> => {
+    return get<any>(`/prescriptions/${prescriptionId}`)
+  },
 }
 
 // ─── Vaccinations ────────────────────────────────────────────────────────────
@@ -463,4 +540,49 @@ export const reportApi = {
   branchPerformance: () => get<any[]>('/reports/branch-performance'),
   stockConsumption: (branchId: number | string) => get<any[]>(`/reports/stock-consumption/${branchId}`),
   wasteStats: (branchId: number | string) => get<any[]>(`/reports/waste-stats/${branchId}`),
+}
+
+// ─── Vaccination Plans ───────────────────────────────────────────────────────
+
+export const vaccinationPlanApi = {
+  // Plan management
+  create: (data: { plan_name: string; species: string; breed?: string; description?: string }) =>
+    post<{ plan_id: number }>('/vaccination-plans', data),
+  list: (species?: string, breed?: string) => {
+    const params = new URLSearchParams()
+    if (species) params.set('species', species)
+    if (breed) params.set('breed', breed)
+    return get<{ plans: VaccinationPlan[] }>(`/vaccination-plans?${params}`).then((data) => data.plans || [])
+  },
+  get: (planId: number | string) =>
+    get<any>(`/vaccination-plans/${planId}`),
+  update: (planId: number | string, data: { plan_name?: string; description?: string }) =>
+    put<any>(`/vaccination-plans/${planId}`, data),
+  delete: (planId: number | string) =>
+    request<any>(`/vaccination-plans/${planId}`, { method: 'DELETE' }),
+
+  // Plan items
+  addItem: (planId: number | string, data: { vaccine_barcode: string; age_weeks: number; sequence_number?: number; repeat_every_months?: number; gender_applicable?: 'M' | 'F'; notes?: string }) =>
+    post<{ item_id: number }>(`/vaccination-plans/${planId}/items`, data),
+  removeItem: (itemId: number | string) =>
+    request<any>(`/vaccination-plans/items/${itemId}`, { method: 'DELETE' }),
+
+  // Apply plans to pets
+  applyPlan: (petId: number | string, planId: number | string) =>
+    post<any>(`/vaccination-plans/pets/${petId}/apply`, { plan_id: planId }),
+  removePlan: (petId: number | string, planId: number | string) =>
+    post<any>(`/vaccination-plans/pets/${petId}/remove`, { plan_id: planId }),
+
+  // Get pet schedule and status
+  getPetSchedule: (petId: number | string) =>
+    get<{ schedule: any[] }>(`/vaccination-plans/pets/${petId}/schedule`).then((data) => data.schedule || []),
+  getApplicablePlans: (petId: number | string) =>
+    get<{ plans: any[] }>(`/vaccination-plans/pets/${petId}/applicable`).then((data) => data.plans || []),
+  getOverdue: (petId: number | string) =>
+    get<{ overdue: any[] }>(`/vaccination-plans/pets/${petId}/overdue`).then((data) => data.overdue || []),
+  getUpcoming: (petId: number | string, days?: number) => {
+    const params = new URLSearchParams()
+    if (days) params.set('days', String(days))
+    return get<{ upcoming: any[] }>(`/vaccination-plans/pets/${petId}/upcoming?${params}`).then((data) => data.upcoming || [])
+  },
 }
