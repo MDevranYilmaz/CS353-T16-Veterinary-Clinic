@@ -41,6 +41,9 @@ def create_pet():
     if data.get("birth_date") and not valid_date(data["birth_date"]):
         return error("birth_date must be YYYY-MM-DD", 400)
 
+    if data.get("gender") and data["gender"] not in ["M", "F"]:
+        return error("gender must be 'M' or 'F'", 400)
+
     try:
         pet_id = PetModel.create(
             data["name"],
@@ -48,6 +51,8 @@ def create_pet():
             data.get("birth_date"),
             data.get("allergies"),
             data["owner_id"],
+            data.get("species"),
+            data.get("gender"),
         )
         return success({"pet_id": pet_id}, "Pet registered successfully", 201)
     except Exception as exc:

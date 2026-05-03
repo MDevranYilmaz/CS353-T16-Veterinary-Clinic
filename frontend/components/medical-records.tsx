@@ -3,6 +3,11 @@
 import { useState, useEffect } from 'react'
 import type { Pet, MedicalRecord } from '@/lib/types'
 import { medicalRecordApi, petApi, prescriptionApi } from '@/lib/api'
+import { appointmentApi, referralApi } from '@/lib/api'
+import { useAuth } from '@/lib/auth-context'
+import { VaccinationScheduleDisplay } from './vaccination-schedule-display'
+import { OverdueVaccinationsAlert } from './overdue-vaccinations-alert'
+import { ApplyVaccinationPlanModal } from './apply-vaccination-plan-modal'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -40,6 +45,7 @@ import {
   AlertTriangle,
   Plus,
   Loader2,
+  ArrowLeft,
 } from 'lucide-react'
 
 interface MedicalRecordsProps {
@@ -48,6 +54,8 @@ interface MedicalRecordsProps {
   userRole: 'owner' | 'vet'
   initialPetId?: string
   onRecordAdded?: () => void
+  showBackButton?: boolean
+  onBack?: () => void
 }
 
 interface AddRecordForm {
@@ -56,10 +64,12 @@ interface AddRecordForm {
   notes: string
 }
 
-export function MedicalRecords({ pets, records, userRole, initialPetId, onRecordAdded }: MedicalRecordsProps) {
+export function MedicalRecords({ pets, records, userRole, initialPetId, onRecordAdded, showBackButton, onBack }: MedicalRecordsProps) {
   const [selectedPetId, setSelectedPetId] = useState<string>(initialPetId ?? pets[0]?.id ?? '')
   const [prescriptions, setPrescriptions] = useState<any[]>([])
   const [vaccinations, setVaccinations] = useState<any[]>([])
+  const [appointmentsList, setAppointmentsList] = useState<any[]>([])
+  const [planModalOpen, setPlanModalOpen] = useState(false)
 
   const formatDateTime = (value?: string) => {
     if (!value) return '—'
@@ -87,6 +97,8 @@ export function MedicalRecords({ pets, records, userRole, initialPetId, onRecord
   const selectedPet = pets.find((p) => p.id === selectedPetId)
   const petRecords = records.filter((r) => r.petId === selectedPetId)
 
+  const { user } = useAuth()
+
   // When selected pet changes, fetch prescriptions and vaccinations
   useEffect(() => {
     if (!selectedPetId) return
@@ -106,13 +118,55 @@ export function MedicalRecords({ pets, records, userRole, initialPetId, onRecord
           })
         )
         const vax = await petApi.vaccinations(selectedPetId)
+
+        // For vets: backend does not support filtering appointments by pet_id directly.
+        // Fetch today's appointments for the current vet and filter by pet.
+        let appts: any[] = []
+        if (user && user.role === 'vet') {
+          const today = new Date().toISOString().slice(0, 10)
+          const vetAppts = await appointmentApi.listByVet(String(user.userId), today)
+          appts = (vetAppts || [])
+            .filter((a: any) => String(a.petId) === String(selectedPetId))
+            .map((a: any) => ({ ...a, vetName: a.vetName || user.fullName }))
+
+          // Also include referrals where this vet is sender or receiver for this pet
+          try {
+            const refs = await referralApi.list({ vet_id: String(user.userId), pet_id: String(selectedPetId) })
+            // mark referrals so UI can display them if desired
+            const mappedRefs = (refs || []).map((r: any) => ({
+              id: `ref-${r.id}`,
+              type: 'referral',
+              date: r.date || '',
+              time: '',
+              petName: r.petName,
+              vetName: String(r.fromVetId) === String(user.userId) ? r.toVetName : r.fromVetName,
+              status: r.status,
+              reason: r.reason,
+              ...r,
+            }))
+            appts = [...appts, ...mappedRefs]
+          } catch (e) {
+            console.warn('[MedicalRecords] failed to load referrals', e)
+          }
+        } else {
+          // Owner or other roles: fall back to listing appointments by pet (if backend supports)
+          try {
+            appts = await appointmentApi.listByPet(selectedPetId)
+          } catch (e) {
+            console.warn('[MedicalRecords] listByPet failed', e)
+            appts = []
+          }
+        }
+
         if (!mounted) return
         setPrescriptions(detailedPres)
         setVaccinations(vax)
+        setAppointmentsList(appts)
       } catch (e) {
         console.error('[MedicalRecords] fetch extra data error:', e)
         setPrescriptions([])
         setVaccinations([])
+        setAppointmentsList([])
       }
     })()
     return () => { mounted = false }
@@ -154,21 +208,28 @@ export function MedicalRecords({ pets, records, userRole, initialPetId, onRecord
     <div className="space-y-6">
       {/* Header row */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <Select value={selectedPetId} onValueChange={setSelectedPetId}>
-          <SelectTrigger className="w-[200px]">
-            <SelectValue placeholder="Select a pet" />
-          </SelectTrigger>
-          <SelectContent>
-            {pets.map((pet) => (
-              <SelectItem key={pet.id} value={pet.id}>
-                <div className="flex items-center gap-2">
-                  <span>{pet.name}</span>
-                  <span className="text-muted-foreground text-xs capitalize">({pet.species})</span>
-                </div>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        {showBackButton ? (
+          <Button variant="ghost" onClick={onBack} size="sm">
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Back to Patients
+          </Button>
+        ) : (
+          <Select value={selectedPetId} onValueChange={setSelectedPetId}>
+            <SelectTrigger className="w-[200px]">
+              <SelectValue placeholder="Select a pet" />
+            </SelectTrigger>
+            <SelectContent>
+              {pets.map((pet) => (
+                <SelectItem key={pet.id} value={pet.id}>
+                  <div className="flex items-center gap-2">
+                    <span>{pet.name}</span>
+                    <span className="text-muted-foreground text-xs capitalize">({pet.species})</span>
+                  </div>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
 
         {userRole === 'vet' && selectedPetId && (
           <Button onClick={() => setAddOpen(true)} size="sm">
@@ -241,8 +302,10 @@ export function MedicalRecords({ pets, records, userRole, initialPetId, onRecord
           <Tabs defaultValue="records">
             <TabsList className="mb-4 w-fit">
               <TabsTrigger value="records">Records</TabsTrigger>
+              <TabsTrigger value="appointments">Appointments</TabsTrigger>
               <TabsTrigger value="prescriptions">Prescriptions</TabsTrigger>
               <TabsTrigger value="vaccinations">Vaccinations</TabsTrigger>
+              <TabsTrigger value="vaccination-schedule">Vaccination Schedule</TabsTrigger>
             </TabsList>
 
             <TabsContent value="records">
@@ -310,6 +373,36 @@ export function MedicalRecords({ pets, records, userRole, initialPetId, onRecord
               </Accordion>
             )}
             </ScrollArea>
+            </TabsContent>
+
+            <TabsContent value="appointments">
+              <div className="space-y-2">
+                {appointmentsList.length === 0 ? (
+                  <Card>
+                    <CardContent className="py-8 text-center text-muted-foreground">No appointments found for this pet.</CardContent>
+                  </Card>
+                ) : (
+                  appointmentsList.map((apt: any) => (
+                    <Card key={apt.id}>
+                      <CardContent className="p-4">
+                        <div className="flex items-start justify-between gap-4">
+                          <div>
+                            <p className="font-semibold">{apt.date} {apt.time || ''}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {apt.type === 'referral' ? 'Referral to' : apt.type} — {apt.vetName || '—'}
+                            </p>
+                          </div>
+                          <Badge variant={apt.type === 'referral' ? 'secondary' : 'default'} className="text-xs">
+                            {apt.type === 'referral' ? apt.status : (apt.status || apt.appointment_status || 'scheduled')}
+                          </Badge>
+                        </div>
+                        {apt.reason && <p className="text-sm text-muted-foreground mt-2">{apt.reason}</p>}
+                        {apt.notes && <p className="text-sm text-muted-foreground mt-3">{apt.notes}</p>}
+                      </CardContent>
+                    </Card>
+                  ))
+                )}
+              </div>
             </TabsContent>
 
             <TabsContent value="prescriptions">
@@ -417,6 +510,24 @@ export function MedicalRecords({ pets, records, userRole, initialPetId, onRecord
                 )}
               </div>
             </TabsContent>
+
+            <TabsContent value="vaccination-schedule" className="space-y-4">
+              <OverdueVaccinationsAlert
+                petId={selectedPetId}
+                onViewSchedule={() => {}}
+                onScheduleNow={() => {}}
+              />
+              {userRole === 'vet' && (
+                <Button
+                  size="sm"
+                  onClick={() => setPlanModalOpen(true)}
+                  variant="outline"
+                >
+                  Change Vaccination Plan
+                </Button>
+              )}
+              <VaccinationScheduleDisplay petId={Number(selectedPetId)} />
+            </TabsContent>
           </Tabs>
         </div>
       )}
@@ -486,6 +597,18 @@ export function MedicalRecords({ pets, records, userRole, initialPetId, onRecord
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {selectedPet && (
+        <ApplyVaccinationPlanModal
+          petId={Number(selectedPetId)}
+          petName={selectedPet.name}
+          isOpen={planModalOpen}
+          onClose={() => setPlanModalOpen(false)}
+          onApplied={() => {
+            setPlanModalOpen(false)
+          }}
+        />
+      )}
     </div>
   )
 }

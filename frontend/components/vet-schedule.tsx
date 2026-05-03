@@ -40,7 +40,7 @@ const statusColors: Record<string, string> = {
   cancelled: 'bg-muted text-muted-foreground border-0',
 }
 
-export function VetSchedule() {
+export function VetSchedule({ onViewRecords }: { onViewRecords?: (petId: string) => void } = {}) {
   const { user } = useAuth()
   const [weekStart, setWeekStart] = useState<Date>(() => getMonday(new Date()))
   const [schedule, setSchedule] = useState<Record<string, Appointment[]>>({})
@@ -182,8 +182,9 @@ export function VetSchedule() {
                       .map((apt) => (
                         <div
                           key={apt.id}
+                          onClick={() => onViewRecords?.(apt.petId)}
                           className={cn(
-                            'flex items-center gap-3 p-3 rounded-lg border',
+                            'flex items-center gap-3 p-3 rounded-lg border cursor-pointer',
                             apt.status === 'completed' && 'opacity-60',
                             apt.status === 'cancelled' && 'opacity-40 line-through-text',
                           )}

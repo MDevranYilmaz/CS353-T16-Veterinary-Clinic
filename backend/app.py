@@ -38,6 +38,7 @@ def create_app():
     from routes.medical_records import bp as medical_records_bp
     from routes.prescriptions import bp as prescriptions_bp
     from routes.vaccinations  import bp as vaccinations_bp
+    from routes.vaccination_plans import bp as vaccination_plans_bp
     from routes.inventory     import bp as inventory_bp
     from routes.billing       import bp as billing_bp
     from routes.referrals     import bp as referrals_bp
@@ -48,7 +49,7 @@ def create_app():
     for bp in (
         auth_bp, branches_bp, vets_bp, appointments_bp, pets_bp,
         medical_records_bp, prescriptions_bp, vaccinations_bp,
-        inventory_bp, billing_bp, referrals_bp, evaluations_bp,
+        vaccination_plans_bp, inventory_bp, billing_bp, referrals_bp, evaluations_bp,
         waste_logs_bp, reports_bp,
     ):
         app.register_blueprint(bp)

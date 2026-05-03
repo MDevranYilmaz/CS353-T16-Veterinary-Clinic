@@ -43,7 +43,6 @@ const roleNavItems: Record<UserRole, { id: string; label: string; icon: React.El
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'schedule', label: 'My Schedule', icon: Calendar },
     { id: 'patients', label: 'Patients', icon: PawPrint },
-    { id: 'records', label: 'Medical Records', icon: ClipboardList },
     { id: 'vaccinations', label: 'Vaccinations', icon: Stethoscope },
     { id: 'referrals', label: 'Referrals', icon: ArrowLeftRight },
   ],

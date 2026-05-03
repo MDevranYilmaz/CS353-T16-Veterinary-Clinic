@@ -3,6 +3,8 @@
 import type { Pet, Appointment, Veterinarian } from '@/lib/types'
 import { useEffect, useState } from 'react'
 import { vetApi } from '@/lib/api'
+import { UpcomingVaccinationsCard } from '@/components/upcoming-vaccinations-card'
+import { VaccinationComplianceWidget } from '@/components/vaccination-compliance-widget'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -106,13 +108,21 @@ export function OwnerDashboard({ pets, appointments, loading = false, onNavigate
         ) : (
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
             {pets.slice(0, 3).map((pet) => (
-              <PetCard
-                key={pet.id}
-                pet={pet}
-                onViewDetails={() => onNavigate('my-pets')}
-                onBookAppointment={() => onNavigate('appointments')}
-                onViewRecords={() => onNavigate('my-pets')}
-              />
+              <div key={pet.id} className="space-y-3">
+                <PetCard
+                  pet={pet}
+                  onViewDetails={() => onNavigate('my-pets')}
+                  onBookAppointment={() => onNavigate('appointments')}
+                  onViewRecords={() => onNavigate('my-pets')}
+                />
+                <div className="space-y-2">
+                  <UpcomingVaccinationsCard
+                    petId={pet.id}
+                    onBookAppointment={() => onNavigate('appointments')}
+                  />
+                  <VaccinationComplianceWidget petId={pet.id} />
+                </div>
+              </div>
             ))}
           </div>
         )}

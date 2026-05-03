@@ -1,4 +1,4 @@
-import type { Pet, Veterinarian, Appointment, Medicine, Branch, Invoice, Referral, MedicalRecord, VaccinationSchedule } from './types'
+import type { Pet, Veterinarian, Appointment, Medicine, Branch, Invoice, Referral, MedicalRecord, VaccinationSchedule, VaccinationPlan, VaccinationPlanItem, VaccinationScheduleItem } from './types'
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'
 
@@ -311,6 +311,10 @@ export const vetApi = {
 
 export const petApi = {
   list: async (owner_id: number | string): Promise<Pet[]> => {
+    if (!owner_id) {
+      console.warn('petApi.list called without owner_id; returning empty list')
+      return []
+    }
     const data = await get<any>(`/pets?owner_id=${owner_id}`)
     const items = data?.items ?? data ?? []
     return items.map(normalizePet)
@@ -347,6 +351,10 @@ export const petApi = {
 
 export const appointmentApi = {
   listByOwner: async (ownerId: number | string): Promise<Appointment[]> => {
+    if (!ownerId) {
+      console.warn('appointmentApi.listByOwner called without ownerId; returning empty list')
+      return []
+    }
     const data = await get<any>(`/appointments?owner_id=${ownerId}`)
     const items = data?.items ?? data ?? []
     return items.map(normalizeAppointment)
@@ -366,6 +374,24 @@ export const appointmentApi = {
     }
     return items.map(normalizeAppointment)
   },
+  listByPet: async (petId: number | string): Promise<Appointment[]> => {
+    const data = await get<any>(`/appointments?pet_id=${petId}`)
+    // Backend may return either an array or an object { appointments: [...] }
+    let items: any[] = []
+    if (Array.isArray(data)) items = data
+    else if (data && Array.isArray(data.appointments)) items = data.appointments
+    else if (data && Array.isArray(data.items)) items = data.items
+    else if (data && Array.isArray(data.data)) items = data.data
+    else if (data && typeof data === 'object') {
+      // try to extract any array value
+      const arr = Object.values(data).find((v) => Array.isArray(v))
+      if (Array.isArray(arr)) items = arr as any[]
+      else {
+        console.warn('Unexpected /appointments response shape for pet:', data)
+      }
+    }
+    return items.map(normalizeAppointment)
+  },
   book: (data: { date_time: string; pet_id: number; vet_id: number; type?: string; notes?: string }) =>
     post<{ appointment_id: number }>('/appointments', data),
   updateStatus: (id: number | string, status: 'Scheduled' | 'Completed' | 'Cancelled') =>
@@ -376,6 +402,10 @@ export const appointmentApi = {
 
 export const billingApi = {
   listByOwner: async (ownerId: number | string): Promise<Invoice[]> => {
+    if (!ownerId) {
+      console.warn('billingApi.listByOwner called without ownerId; returning empty list')
+      return []
+    }
     const data = await get<any>(`/billing?owner_id=${ownerId}`)
     const items = data?.items ?? data ?? []
     return items.map(normalizeBill)
@@ -508,4 +538,49 @@ export const reportApi = {
   branchPerformance: () => get<any[]>('/reports/branch-performance'),
   stockConsumption: (branchId: number | string) => get<any[]>(`/reports/stock-consumption/${branchId}`),
   wasteStats: (branchId: number | string) => get<any[]>(`/reports/waste-stats/${branchId}`),
+}
+
+// ─── Vaccination Plans ───────────────────────────────────────────────────────
+
+export const vaccinationPlanApi = {
+  // Plan management
+  create: (data: { plan_name: string; species: string; breed?: string; description?: string }) =>
+    post<{ plan_id: number }>('/vaccination-plans', data),
+  list: (species?: string, breed?: string) => {
+    const params = new URLSearchParams()
+    if (species) params.set('species', species)
+    if (breed) params.set('breed', breed)
+    return get<any[]>(`/vaccination-plans?${params}`)
+  },
+  get: (planId: number | string) =>
+    get<any>(`/vaccination-plans/${planId}`),
+  update: (planId: number | string, data: { plan_name?: string; description?: string }) =>
+    put<any>(`/vaccination-plans/${planId}`, data),
+  delete: (planId: number | string) =>
+    request<any>(`/vaccination-plans/${planId}`, { method: 'DELETE' }),
+
+  // Plan items
+  addItem: (planId: number | string, data: { vaccine_barcode: string; age_weeks: number; sequence_number?: number; repeat_every_months?: number; gender_applicable?: 'M' | 'F'; notes?: string }) =>
+    post<{ item_id: number }>(`/vaccination-plans/${planId}/items`, data),
+  removeItem: (itemId: number | string) =>
+    request<any>(`/vaccination-plans/items/${itemId}`, { method: 'DELETE' }),
+
+  // Apply plans to pets
+  applyPlan: (petId: number | string, planId: number | string) =>
+    post<any>(`/vaccination-plans/pets/${petId}/apply`, { plan_id: planId }),
+  removePlan: (petId: number | string, planId: number | string) =>
+    post<any>(`/vaccination-plans/pets/${petId}/remove`, { plan_id: planId }),
+
+  // Get pet schedule and status
+  getPetSchedule: (petId: number | string) =>
+    get<any>(`/vaccination-plans/pets/${petId}/schedule`),
+  getApplicablePlans: (petId: number | string) =>
+    get<any>(`/vaccination-plans/pets/${petId}/applicable`),
+  getOverdue: (petId: number | string) =>
+    get<any>(`/vaccination-plans/pets/${petId}/overdue`),
+  getUpcoming: (petId: number | string, days?: number) => {
+    const params = new URLSearchParams()
+    if (days) params.set('days', String(days))
+    return get<any>(`/vaccination-plans/pets/${petId}/upcoming?${params}`)
+  },
 }

@@ -10,6 +10,7 @@ import { ManagerDashboard } from '@/components/dashboards/manager-dashboard'
 import { AppointmentWizard } from '@/components/appointment-wizard'
 import { VetFinder } from '@/components/vet-finder'
 import { PetCard } from '@/components/pet-card'
+import { VetPatientRow } from '@/components/vet-patient-row'
 import { AddPetForm } from '@/components/add-pet-form'
 import { MedicalRecords } from '@/components/medical-records'
 import { EvaluationModal } from '@/components/evaluation-modal'
@@ -105,9 +106,9 @@ export default function VetClinicApp() {
     }
   }
 
-  // Fetch vet records data when navigating to records view
+  // Fetch vet patients & records when navigating to Patients view
   useEffect(() => {
-    if (!user || user.role !== 'vet' || currentView !== 'records') return
+    if (!user || user.role !== 'vet' || currentView !== 'patients') return
     setRecordsLoading(true)
     const today = new Date().toISOString().slice(0, 10)
     appointmentApi.listByVet(user.userId, today)
@@ -129,7 +130,7 @@ export default function VetClinicApp() {
   const handleViewChange = (view: string, petId?: string) => {
     setCurrentView(view)
     setShowAppointmentWizard(false)
-    if (view === 'records') setInitialRecordPetId(petId ?? null)
+    if (view === 'patients') setInitialRecordPetId(petId ?? null)
   }
 
   const handleLogout = () => {
@@ -381,15 +382,12 @@ export default function VetClinicApp() {
           return <VetDashboard onNavigate={handleViewChange} />
 
         case 'schedule':
-          return <VetSchedule />
+          return <VetSchedule onViewRecords={(petId) => handleViewChange('patients', petId)} />
 
         case 'patients':
-          return <VetDashboard onNavigate={handleViewChange} patientsOnly />
-
-        case 'records':
           return (
             <div className="space-y-6">
-              <h1 className="text-2xl font-bold">Patient Records</h1>
+              <h1 className="text-2xl font-bold">Patients</h1>
               {recordsLoading ? (
                 <div className="flex justify-center py-20">
                   <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -404,14 +402,24 @@ export default function VetClinicApp() {
                     </p>
                   </CardContent>
                 </Card>
+              ) : initialRecordPetId ? (
+                <div className="space-y-4">
+                  <MedicalRecords
+                    pets={vetPets}
+                    records={vetRecords}
+                    userRole="vet"
+                    initialPetId={initialRecordPetId ?? undefined}
+                    onRecordAdded={() => handleViewChange('patients')}
+                    showBackButton
+                    onBack={() => setInitialRecordPetId(null)}
+                  />
+                </div>
               ) : (
-                <MedicalRecords
-                  pets={vetPets}
-                  records={vetRecords}
-                  userRole="vet"
-                  initialPetId={initialRecordPetId ?? undefined}
-                  onRecordAdded={() => handleViewChange('records')}
-                />
+                <div className="space-y-3">
+                  {vetPets.map((pet) => (
+                    <VetPatientRow key={pet.id} pet={pet} onViewRecords={(id) => handleViewChange('patients', id)} />
+                  ))}
+                </div>
               )}
             </div>
           )
