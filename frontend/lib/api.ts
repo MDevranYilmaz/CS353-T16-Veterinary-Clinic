@@ -86,8 +86,34 @@ export function normalizeVet(v: any): Veterinarian {
 
 export function normalizeAppointment(a: any): Appointment {
   const dt: string = a.date_time || ''
-  const [date = '', timeFull = ''] = dt.split(' ')
-  const time = timeFull.slice(0, 5)
+  let date = ''
+  let time = ''
+
+  // Try to parse as a Date first (handles RFC1123 like "Sun, 03 May 2026 14:00:00 GMT" and ISO strings)
+  const parsed = Date.parse(dt)
+  if (!isNaN(parsed)) {
+    const d = new Date(parsed)
+    // Convert and display times in Europe/Istanbul timezone
+    try {
+      date = d.toLocaleDateString('en-CA', { timeZone: 'Europe/Istanbul' }) // YYYY-MM-DD
+      time = d.toLocaleTimeString('en-GB', { timeZone: 'Europe/Istanbul', hour12: false, hour: '2-digit', minute: '2-digit' }) // HH:MM
+    } catch (e) {
+      const year = d.getFullYear()
+      const month = String(d.getMonth() + 1).padStart(2, '0')
+      const day = String(d.getDate()).padStart(2, '0')
+      const hh = String(d.getHours()).padStart(2, '0')
+      const mm = String(d.getMinutes()).padStart(2, '0')
+      date = `${year}-${month}-${day}`
+      time = `${hh}:${mm}`
+    }
+  } else {
+    // Fallback parsing for DB-style "YYYY-MM-DD HH:MM:SS" or other simple formats
+    const parts = dt.split(' ')
+    date = parts[0] || ''
+    if (parts.length > 1 && parts[1]) time = parts[1].slice(0, 5)
+    else time = dt.slice(11, 16) || ''
+  }
+  
   const rawStatus = (a.status || '').toLowerCase() as string
   const statusMap: Record<string, Appointment['status']> = {
     scheduled: 'scheduled',
@@ -106,8 +132,8 @@ export function normalizeAppointment(a: any): Appointment {
     branchId: String(a.branch_id || ''),
     branchName: a.branch_name || '',
     date,
-    time,
-    type: 'checkup',
+    time: time || '--:--', // Fallback if time parsing fails
+    type: (a.type || a.appointment_type || 'checkup').toLowerCase(),
     status: statusMap[rawStatus] ?? 'scheduled',
     notes: a.notes,
   }
@@ -300,10 +326,15 @@ export const petApi = {
     const items = data?.items ?? data ?? []
     return items.map(normalizeMedicalRecord)
   },
-  vaccinations: async (petId: number | string): Promise<VaccinationSchedule[]> => {
+  prescriptions: async (petId: number | string): Promise<any[]> => {
+    const data = await get<any>(`/pets/${petId}/prescriptions`)
+    const items = data?.items ?? data ?? []
+    return items
+  },
+  vaccinations: async (petId: number | string): Promise<any[]> => {
     const data = await get<any>(`/pets/${petId}/vaccinations`)
     const items = data?.items ?? data ?? []
-    return items.map(normalizeVaccination)
+    return items
   },
   referrals: async (petId: number | string): Promise<Referral[]> => {
     const data = await get<any>(`/pets/${petId}/referrals`)
@@ -322,9 +353,20 @@ export const appointmentApi = {
   },
   listByVet: async (vetId: number | string, date: string): Promise<Appointment[]> => {
     const data = await get<any>(`/appointments/vet?vet_id=${vetId}&date=${date}`)
-    return (Array.isArray(data) ? data : []).map(normalizeAppointment)
+    // Backend may return either an array or an object { appointments: [...] }
+    let items: any[] = []
+    if (Array.isArray(data)) items = data
+    else if (data && Array.isArray(data.appointments)) items = data.appointments
+    else if (data && Array.isArray(data.data)) items = data.data
+    else {
+      console.warn('Unexpected /appointments/vet response shape', data)
+    }
+    if (items.length > 0) {
+      console.log('[API] First appointment raw data:', items[0])
+    }
+    return items.map(normalizeAppointment)
   },
-  book: (data: { date_time: string; pet_id: number; vet_id: number }) =>
+  book: (data: { date_time: string; pet_id: number; vet_id: number; type?: string; notes?: string }) =>
     post<{ appointment_id: number }>('/appointments', data),
   updateStatus: (id: number | string, status: 'Scheduled' | 'Completed' | 'Cancelled') =>
     put<any>(`/appointments/${id}/status`, { status }),
@@ -391,6 +433,9 @@ export const prescriptionApi = {
     expiration_date?: string
     medicines: { barcode_no: string; dosage: number; frequency: number }[]
   }) => post<{ prescription_id: number }>('/prescriptions', data),
+  get: async (prescriptionId: number | string): Promise<any> => {
+    return get<any>(`/prescriptions/${prescriptionId}`)
+  },
 }
 
 // ─── Vaccinations ────────────────────────────────────────────────────────────

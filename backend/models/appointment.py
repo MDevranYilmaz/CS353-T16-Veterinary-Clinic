@@ -6,8 +6,8 @@ class AppointmentModel:
     def create(date_time, pet_id, vet_id) -> int:
         with DBContext() as (conn, cur):
             cur.execute(
-                "INSERT INTO Appointment (date_time, status, pet_id, vet_id) VALUES (%s,'Scheduled',%s,%s)",
-                (date_time, pet_id, vet_id),
+                "INSERT INTO Appointment (date_time, status, type, notes, pet_id, vet_id) VALUES (%s,'Scheduled',%s,%s,%s,%s)",
+                (date_time, 'checkup', None, pet_id, vet_id),
             )
             return cur.lastrowid
 
@@ -50,20 +50,51 @@ class AppointmentModel:
 
     @staticmethod
     def list_by_vet_date(vet_id: int, date: str):
+        # Compute UTC range for the provided local (Istanbul) date
+        from datetime import datetime
+        try:
+            from zoneinfo import ZoneInfo
+            IST = ZoneInfo("Europe/Istanbul")
+            UTC = ZoneInfo("UTC")
+            y, m, d = map(int, date.split('-'))
+            local_start = datetime(y, m, d, 0, 0, 0, tzinfo=IST)
+            local_end = datetime(y, m, d, 23, 59, 59, tzinfo=IST)
+            utc_start = local_start.astimezone(UTC).strftime("%Y-%m-%d %H:%M:%S")
+            utc_end = local_end.astimezone(UTC).strftime("%Y-%m-%d %H:%M:%S")
+        except Exception:
+            # fallback: treat date as-is and match DATE(date_time)
+            utc_start = None
+            utc_end = None
+
         with DBContext() as (conn, cur):
-            cur.execute(
-                """
-                SELECT a.*, p.name AS pet_name, p.breed, p.allergies,
-                       uo.full_name AS owner_name, uo.phone AS owner_phone
-                FROM Appointment a
-                JOIN Pet p ON p.pet_id = a.pet_id
-                JOIN Pet_Owner po ON po.user_id = p.owner_id
-                JOIN User uo ON uo.user_id = po.user_id
-                WHERE a.vet_id = %s AND DATE(a.date_time) = %s
-                ORDER BY a.date_time
-                """,
-                (vet_id, date),
-            )
+            if utc_start and utc_end:
+                cur.execute(
+                    """
+                    SELECT a.*, p.name AS pet_name, p.breed, p.allergies,
+                           uo.full_name AS owner_name, uo.phone AS owner_phone
+                    FROM Appointment a
+                    JOIN Pet p ON p.pet_id = a.pet_id
+                    JOIN Pet_Owner po ON po.user_id = p.owner_id
+                    JOIN User uo ON uo.user_id = po.user_id
+                    WHERE a.vet_id = %s AND a.date_time BETWEEN %s AND %s
+                    ORDER BY a.date_time
+                    """,
+                    (vet_id, utc_start, utc_end),
+                )
+            else:
+                cur.execute(
+                    """
+                    SELECT a.*, p.name AS pet_name, p.breed, p.allergies,
+                           uo.full_name AS owner_name, uo.phone AS owner_phone
+                    FROM Appointment a
+                    JOIN Pet p ON p.pet_id = a.pet_id
+                    JOIN Pet_Owner po ON po.user_id = p.owner_id
+                    JOIN User uo ON uo.user_id = po.user_id
+                    WHERE a.vet_id = %s AND DATE(a.date_time) = %s
+                    ORDER BY a.date_time
+                    """,
+                    (vet_id, date),
+                )
             return cur.fetchall()
 
     @staticmethod

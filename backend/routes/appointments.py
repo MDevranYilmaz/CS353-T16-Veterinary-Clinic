@@ -23,7 +23,9 @@ def create_appointment():
         return error("date_time must be YYYY-MM-DDTHH:MM:SS or YYYY-MM-DD HH:MM:SS", 400)
 
     try:
-        result = book_appointment(data["date_time"], data["pet_id"], data["vet_id"])
+        appt_type = data.get('type', 'checkup')
+        notes = data.get('notes')
+        result = book_appointment(data["date_time"], data["pet_id"], data["vet_id"], appt_type, notes)
         return success(result, "Appointment booked successfully", 201)
     except ValueError as exc:
         return error(str(exc), 409)

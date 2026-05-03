@@ -68,6 +68,31 @@ export function VetSchedule() {
       .finally(() => setLoading(false))
   }, [user, weekStart])
 
+  // Reload schedule (used by event listener)
+  const reloadSchedule = async () => {
+    if (!user) return
+    setLoading(true)
+    try {
+      const dateStrs = weekDates.map(toDateStr)
+      const results = await Promise.all(dateStrs.map((date) => appointmentApi.listByVet(user.userId, date)))
+      const sched: Record<string, Appointment[]> = {}
+      dateStrs.forEach((date, i) => {
+        sched[date] = results[i]
+      })
+      setSchedule(sched)
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    const handler = () => reloadSchedule()
+    window.addEventListener('appointments:updated', handler)
+    return () => window.removeEventListener('appointments:updated', handler)
+  }, [user, weekStart])
+
   const prevWeek = () => {
     const prev = new Date(weekStart)
     prev.setDate(prev.getDate() - 7)

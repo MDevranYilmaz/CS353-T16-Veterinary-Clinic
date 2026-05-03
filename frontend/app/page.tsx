@@ -95,6 +95,16 @@ export default function VetClinicApp() {
     }
   }
 
+  const reloadOwnerAppointments = async () => {
+    if (!user) return
+    try {
+      const appts = await appointmentApi.listByOwner(user.userId)
+      setOwnerAppointments(appts)
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
   // Fetch vet records data when navigating to records view
   useEffect(() => {
     if (!user || user.role !== 'vet' || currentView !== 'records') return
@@ -114,9 +124,17 @@ export default function VetClinicApp() {
       .finally(() => setRecordsLoading(false))
   }, [user, currentView])
 
-  const handleViewChange = (view: string) => {
+  const [initialRecordPetId, setInitialRecordPetId] = useState<string | null>(null)
+
+  const handleViewChange = (view: string, petId?: string) => {
     setCurrentView(view)
     setShowAppointmentWizard(false)
+    if (view === 'records') setInitialRecordPetId(petId ?? null)
+  }
+
+  const handleLogout = () => {
+    logout()
+    setCurrentView('dashboard')
   }
 
   if (isLoading) {
@@ -146,6 +164,14 @@ export default function VetClinicApp() {
             onComplete={() => {
               setShowAppointmentWizard(false)
               setCurrentView('appointments')
+              // refresh appointments so new booking appears immediately
+              reloadOwnerAppointments()
+              // notify other parts of the app (e.g., vet schedule) to refresh
+              try {
+                window.dispatchEvent(new CustomEvent('appointments:updated'))
+              } catch (e) {
+                // ignore in non-browser environments
+              }
             }}
             onCancel={() => setShowAppointmentWizard(false)}
           />
@@ -383,6 +409,7 @@ export default function VetClinicApp() {
                   pets={vetPets}
                   records={vetRecords}
                   userRole="vet"
+                  initialPetId={initialRecordPetId ?? undefined}
                   onRecordAdded={() => handleViewChange('records')}
                 />
               )}
@@ -482,6 +509,7 @@ export default function VetClinicApp() {
         currentView={currentView}
         onViewChange={handleViewChange}
         userName={user.fullName}
+        onLogout={handleLogout}
       />
 
       <main className="flex-1 overflow-auto">
@@ -511,7 +539,7 @@ export default function VetClinicApp() {
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
-                  onClick={logout}
+                  onClick={handleLogout}
                   className="text-destructive focus:text-destructive"
                 >
                   <LogOut className="w-4 h-4 mr-2" />

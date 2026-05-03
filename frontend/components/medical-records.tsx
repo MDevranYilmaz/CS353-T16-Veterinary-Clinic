@@ -1,8 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import type { Pet, MedicalRecord } from '@/lib/types'
-import { medicalRecordApi } from '@/lib/api'
+import { medicalRecordApi, petApi, prescriptionApi } from '@/lib/api'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -17,6 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import {
   Accordion,
   AccordionContent,
@@ -45,6 +46,7 @@ interface MedicalRecordsProps {
   pets: Pet[]
   records: MedicalRecord[]
   userRole: 'owner' | 'vet'
+  initialPetId?: string
   onRecordAdded?: () => void
 }
 
@@ -54,8 +56,29 @@ interface AddRecordForm {
   notes: string
 }
 
-export function MedicalRecords({ pets, records, userRole, onRecordAdded }: MedicalRecordsProps) {
-  const [selectedPetId, setSelectedPetId] = useState<string>(pets[0]?.id || '')
+export function MedicalRecords({ pets, records, userRole, initialPetId, onRecordAdded }: MedicalRecordsProps) {
+  const [selectedPetId, setSelectedPetId] = useState<string>(initialPetId ?? pets[0]?.id ?? '')
+  const [prescriptions, setPrescriptions] = useState<any[]>([])
+  const [vaccinations, setVaccinations] = useState<any[]>([])
+
+  const formatDateTime = (value?: string) => {
+    if (!value) return '—'
+    const parsed = Date.parse(value)
+    if (Number.isNaN(parsed)) return value
+    return new Date(parsed).toLocaleString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+  }
+
+  // Update selected pet if initialPetId or pets list changes
+  useEffect(() => {
+    if (initialPetId) setSelectedPetId(initialPetId)
+    else if (!selectedPetId && pets[0]?.id) setSelectedPetId(pets[0].id)
+  }, [initialPetId, pets])
   const [searchTerm, setSearchTerm] = useState('')
   const [addOpen, setAddOpen] = useState(false)
   const [form, setForm] = useState<AddRecordForm>({ diagnosis: '', treatments: '', notes: '' })
@@ -63,6 +86,37 @@ export function MedicalRecords({ pets, records, userRole, onRecordAdded }: Medic
 
   const selectedPet = pets.find((p) => p.id === selectedPetId)
   const petRecords = records.filter((r) => r.petId === selectedPetId)
+
+  // When selected pet changes, fetch prescriptions and vaccinations
+  useEffect(() => {
+    if (!selectedPetId) return
+    let mounted = true
+    ;(async () => {
+      try {
+        const pres = await petApi.prescriptions(selectedPetId)
+        const detailedPres = await Promise.all(
+          pres.map(async (item: any) => {
+            const prescriptionId = item.prescription_id || item.id
+            if (!prescriptionId) return item
+            try {
+              return await prescriptionApi.get(prescriptionId)
+            } catch {
+              return item
+            }
+          })
+        )
+        const vax = await petApi.vaccinations(selectedPetId)
+        if (!mounted) return
+        setPrescriptions(detailedPres)
+        setVaccinations(vax)
+      } catch (e) {
+        console.error('[MedicalRecords] fetch extra data error:', e)
+        setPrescriptions([])
+        setVaccinations([])
+      }
+    })()
+    return () => { mounted = false }
+  }, [selectedPetId])
 
   const filteredRecords = petRecords.filter((record) => {
     if (!searchTerm) return true
@@ -145,7 +199,7 @@ export function MedicalRecords({ pets, records, userRole, onRecordAdded }: Medic
                   <p className="text-muted-foreground text-xs">Age</p>
                   <p className="font-medium">{selectedPet.age} yr</p>
                 </div>
-                {selectedPet.allergies.length > 0 && (
+                {selectedPet.allergies.length > 0 ? (
                   <div>
                     <p className="text-muted-foreground text-xs flex items-center gap-1">
                       <AlertTriangle className="w-3 h-3 text-destructive" />
@@ -158,6 +212,14 @@ export function MedicalRecords({ pets, records, userRole, onRecordAdded }: Medic
                         </Badge>
                       ))}
                     </div>
+                  </div>
+                ) : (
+                  <div>
+                    <p className="text-muted-foreground text-xs flex items-center gap-1">
+                      <AlertTriangle className="w-3 h-3 text-destructive" />
+                      Allergies
+                    </p>
+                    <p className="text-sm text-muted-foreground">None</p>
                   </div>
                 )}
               </div>
@@ -175,8 +237,16 @@ export function MedicalRecords({ pets, records, userRole, onRecordAdded }: Medic
             />
           </div>
 
-          {/* Records list */}
-          <ScrollArea className="h-[480px] pr-2">
+          {/* Tabbed content: Records / Prescriptions / Vaccinations */}
+          <Tabs defaultValue="records">
+            <TabsList className="mb-4 w-fit">
+              <TabsTrigger value="records">Records</TabsTrigger>
+              <TabsTrigger value="prescriptions">Prescriptions</TabsTrigger>
+              <TabsTrigger value="vaccinations">Vaccinations</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="records">
+              <ScrollArea className="h-[420px] pr-2">
             {filteredRecords.length === 0 ? (
               <Card>
                 <CardContent className="flex flex-col items-center justify-center py-14">
@@ -239,7 +309,115 @@ export function MedicalRecords({ pets, records, userRole, onRecordAdded }: Medic
                 ))}
               </Accordion>
             )}
-          </ScrollArea>
+            </ScrollArea>
+            </TabsContent>
+
+            <TabsContent value="prescriptions">
+              <div className="space-y-2">
+                {prescriptions.length === 0 ? (
+                  <Card>
+                    <CardContent className="py-8 text-center text-muted-foreground">No prescriptions found.</CardContent>
+                  </Card>
+                ) : (
+                  prescriptions.map((pr) => (
+                    <Card key={pr.prescription_id || pr.id}>
+                      <CardContent className="p-4 space-y-3">
+                        <div className="flex items-start justify-between gap-4">
+                          <div>
+                            <p className="font-semibold">Prescription #{pr.prescription_id || pr.id}</p>
+                            <p className="text-xs text-muted-foreground">{formatDateTime(pr.date_time)}</p>
+                          </div>
+                          {pr.vet_name && <Badge variant="secondary">Dr. {pr.vet_name}</Badge>}
+                        </div>
+
+                        <div className="grid gap-2 text-sm sm:grid-cols-2">
+                          <div>
+                            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Pet</p>
+                            <p>{pr.pet_name || selectedPet?.name || '—'}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Expires</p>
+                            <p>{pr.expiration_date || '—'}</p>
+                          </div>
+                        </div>
+
+                        {pr.medicines?.length > 0 ? (
+                          <div className="space-y-2">
+                            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Medicines</p>
+                            <div className="space-y-2">
+                              {pr.medicines.map((m: any, i: number) => (
+                                <div key={m.medicine_id || m.barcode_no || i} className="rounded-md border p-3">
+                                  <div className="flex items-start justify-between gap-3">
+                                    <div>
+                                      <p className="font-medium">{m.med_name || m.medicine_name || m.barcode_no}</p>
+                                      <p className="text-xs text-muted-foreground">{m.med_type || m.category || 'medicine'}</p>
+                                    </div>
+                                    <Badge variant="outline">Qty {m.dosage ?? m.quantity ?? 1}</Badge>
+                                  </div>
+                                  <div className="mt-2 grid gap-2 text-xs text-muted-foreground sm:grid-cols-2">
+                                    <p>Frequency: {m.frequency ?? '—'}</p>
+                                    <p>Unit cost: {m.unit_cost ? `$${m.unit_cost}` : '—'}</p>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ) : (
+                          <p className="text-sm text-muted-foreground">No medicines listed.</p>
+                        )}
+                      </CardContent>
+                    </Card>
+                  ))
+                )}
+              </div>
+            </TabsContent>
+
+            <TabsContent value="vaccinations">
+              <div className="space-y-2">
+                {vaccinations.length === 0 ? (
+                  <Card>
+                    <CardContent className="py-8 text-center text-muted-foreground">No vaccinations found.</CardContent>
+                  </Card>
+                ) : (
+                  vaccinations.map((v: any) => (
+                    <Card key={v.vac_id || v.id}>
+                      <CardContent className="p-4 space-y-3">
+                        <div className="flex items-start justify-between gap-4">
+                          <div>
+                            <p className="font-semibold">{v.vaccine_name || v.vaccineName || v.vaccineId}</p>
+                            <p className="text-xs text-muted-foreground">Given: {formatDateTime(v.vac_date || v.date_time || v.dueDate)}</p>
+                          </div>
+                          {v.vaccination_status && <Badge variant="secondary">{v.vaccination_status}</Badge>}
+                        </div>
+
+                        <div className="grid gap-2 text-sm sm:grid-cols-2">
+                          <div>
+                            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Next due</p>
+                            <p>{v.next_due_date || '—'}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Vet</p>
+                            <p>{v.vet_name ? `Dr. ${v.vet_name}` : '—'}</p>
+                          </div>
+                        </div>
+
+                        <div className="grid gap-2 text-sm sm:grid-cols-2">
+                          <div>
+                            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Type</p>
+                            <p>{v.vac_type || '—'}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Pet breed</p>
+                            <p>{v.breed || '—'}</p>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))
+                )}
+              </div>
+            </TabsContent>
+          </Tabs>
         </div>
       )}
 

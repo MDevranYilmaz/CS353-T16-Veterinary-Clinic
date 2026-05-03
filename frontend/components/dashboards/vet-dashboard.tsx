@@ -64,6 +64,18 @@ export function VetDashboard({
 
   useEffect(() => { loadData() }, [user])
 
+  useEffect(() => {
+    const handler = () => {
+      try {
+        loadData()
+      } catch (e) {
+        console.error('[VetDashboard] reload on event error:', e)
+      }
+    }
+    window.addEventListener('appointments:updated', handler)
+    return () => window.removeEventListener('appointments:updated', handler)
+  }, [user])
+
   const handleStatusUpdate = async (id: string, status: 'Completed' | 'Cancelled') => {
     try {
       await appointmentApi.updateStatus(id, status)
@@ -291,7 +303,7 @@ export function VetDashboard({
                                   size="sm"
                                   variant="outline"
                                   className="gap-1 h-7 text-xs"
-                                  onClick={() => onNavigate('records')}
+                                  onClick={() => onNavigate('records', apt.petId)}
                                 >
                                   <Eye className="w-3 h-3" />Records
                                 </Button>

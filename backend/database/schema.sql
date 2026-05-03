@@ -98,6 +98,8 @@ CREATE TABLE Appointment (
     appointment_id INT AUTO_INCREMENT PRIMARY KEY,
     date_time      DATETIME NOT NULL,
     status         ENUM('Scheduled','Completed','Cancelled') NOT NULL DEFAULT 'Scheduled',
+    type           VARCHAR(50) NOT NULL DEFAULT 'checkup',
+    notes          TEXT,
     pet_id         INT NOT NULL,
     vet_id         INT NOT NULL,
     CONSTRAINT fk_appt_pet FOREIGN KEY (pet_id) REFERENCES Pet(pet_id)               ON DELETE CASCADE,
