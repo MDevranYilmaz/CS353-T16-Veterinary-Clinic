@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/lib/auth-context'
-import { appointmentApi, referralApi, vaccinationApi, inventoryApi } from '@/lib/api'
+import { appointmentApi, referralApi, vaccinationApi, inventoryApi, evaluationApi } from '@/lib/api'
 import type { Appointment, Referral, VaccinationSchedule, Medicine } from '@/lib/types'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -12,7 +12,7 @@ import { PrescriptionModal } from '@/components/prescription-modal'
 import { VaccinationModal } from '@/components/vaccination-modal'
 import {
   Calendar, Clock, CheckCircle2, Stethoscope,
-  ClipboardList, ArrowLeftRight, Syringe, Dog, Cat, Pill, Eye, Loader2, XCircle,
+  ClipboardList, ArrowLeftRight, Syringe, Dog, Cat, Pill, Eye, Loader2, XCircle, Star,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -35,6 +35,15 @@ export function VetDashboard({
   const [overdueVax, setOverdueVax] = useState<VaccinationSchedule[]>([])
   const [medicines, setMedicines] = useState<Medicine[]>([])
   const [loading, setLoading] = useState(true)
+
+  const [vetRating, setVetRating] = useState<{ avg_rating: number; total: number } | null>(null)
+
+  useEffect(() => {
+    if (!user?.userId) return
+    evaluationApi.forVet(user.userId)
+      .then((data: any) => setVetRating(data?.rating ?? null))
+      .catch(console.error)
+  }, [user])
 
   const [prescriptionModal, setPrescriptionModal] = useState<{
     open: boolean; petName: string; petId: string
@@ -217,7 +226,20 @@ export function VetDashboard({
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+        {vetRating && (
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-2">
+                <Star className="w-5 h-5 fill-warning text-warning" />
+                <div>
+                  <p className="text-2xl font-bold">{Number(vetRating.avg_rating).toFixed(1)}</p>
+                  <p className="text-xs text-muted-foreground">{vetRating.total} reviews</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
         {[
           { icon: Calendar, value: appointments.length, label: 'Today', color: 'bg-primary/10 text-primary' },
           { icon: Stethoscope, value: appointments.filter((a) => a.status === 'scheduled').length, label: 'Upcoming', color: 'bg-accent/10 text-accent' },

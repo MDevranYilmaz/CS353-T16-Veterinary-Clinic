@@ -448,14 +448,9 @@ export default function VetClinicApp() {
                 open={referralModal}
                 onOpenChange={setReferralModal}
                 currentVetId={String(user.userId)}
-                onSubmit={(referral) => {
-                  referralApi.create({
-                    reason: referral.reason,
-                    referral_date: new Date().toISOString().slice(0, 10),
-                    receiver_vet_id: Number(referral.toVetId),
-                    pet_id: Number(referral.petId),
-                  }).catch(console.error)
-                  setReferralModal(false)
+                pets={vetPets}
+                onSubmit={() => {
+                  // The modal handles API call now
                 }}
               />
             </div>
