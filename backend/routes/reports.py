@@ -150,11 +150,13 @@ def vaccination_trends():
             cur.execute(
                 """
                 SELECT DATE_FORMAT(vac_date, '%Y-%m') AS month,
-                       COUNT(*) AS total_vaccinations
+                       COUNT(*) AS total_vaccinations,
+                       COUNT(DISTINCT pet_id) AS unique_pets_vaccinated,
+                       COUNT(DISTINCT vet_id) AS vets_administered
                 FROM Vaccination
                 WHERE vac_date >= DATE_SUB(CURDATE(), INTERVAL 12 MONTH)
                 GROUP BY DATE_FORMAT(vac_date, '%Y-%m')
-                ORDER BY month ASC
+                ORDER BY month DESC
                 """
             )
             rows = cur.fetchall()
@@ -162,6 +164,141 @@ def vaccination_trends():
     except Exception as exc:
         logger.error("vaccination_trends error: %s", exc)
         return error("Failed to generate vaccination trends", 500)
+
+
+@bp.route("/vaccination-most-administered", methods=["GET"])
+@require_role("manager", "veterinarian")
+def vaccination_most_administered():
+    try:
+        branch_id = request.args.get("branch_id")
+        params = []
+        where = ""
+        if branch_id:
+            where = "WHERE br.branch_id = %s"
+            params.append(branch_id)
+
+        with DBContext() as (conn, cur):
+            cur.execute(
+                f"""
+                SELECT m.med_name AS vaccine_name,
+                       vc.vac_type,
+                       br.branch_id,
+                       br.name AS branch_name,
+                       COUNT(*) AS total_administered,
+                       COUNT(DISTINCT vac.pet_id) AS unique_pets,
+                       MIN(vac.vac_date) AS first_administered,
+                       MAX(vac.vac_date) AS last_administered
+                FROM Vaccination vac
+                JOIN Vaccine vc ON vc.barcode_no = vac.barcode_no
+                JOIN Medicine m ON m.barcode_no = vc.barcode_no
+                JOIN Veterinarian vet ON vet.user_id = vac.vet_id
+                JOIN Branch br ON br.branch_id = vet.branch_id
+                {where}
+                GROUP BY m.med_name, vc.vac_type, br.branch_id, br.name
+                ORDER BY total_administered DESC, m.med_name ASC
+                """,
+                params,
+            )
+            rows = cur.fetchall()
+        return success(rows)
+    except Exception as exc:
+        logger.error("vaccination_most_administered error: %s", exc)
+        return error("Failed to generate most-administered vaccine report", 500)
+
+
+@bp.route("/vaccination-overdue-rates", methods=["GET"])
+@require_role("manager", "veterinarian")
+def vaccination_overdue_rates():
+    try:
+        with DBContext() as (conn, cur):
+            cur.execute(
+                """
+                SELECT br.branch_id,
+                       br.name AS branch_name,
+                       COUNT(DISTINCT ov.pet_id) AS pets_with_overdue,
+                       COUNT(ov.vac_id) AS total_overdue_vaccinations,
+                       AVG(ov.days_overdue) AS avg_days_overdue,
+                       MAX(ov.days_overdue) AS max_days_overdue,
+                       SUM(CASE WHEN ov.days_overdue > 90 THEN 1 ELSE 0 END) AS critical_overdue,
+                       SUM(CASE WHEN ov.days_overdue > 30 AND ov.days_overdue <= 90 THEN 1 ELSE 0 END) AS high_priority_overdue
+                FROM Branch br
+                LEFT JOIN OverdueVaccinations ov ON ov.branch_id = br.branch_id
+                GROUP BY br.branch_id, br.name
+                ORDER BY total_overdue_vaccinations DESC
+                """
+            )
+            rows = cur.fetchall()
+        return success(rows)
+    except Exception as exc:
+        logger.error("vaccination_overdue_rates error: %s", exc)
+        return error("Failed to generate overdue-rate report", 500)
+
+
+@bp.route("/vaccination-coverage", methods=["GET"])
+@require_role("manager", "veterinarian")
+def vaccination_coverage():
+    try:
+        with DBContext() as (conn, cur):
+            cur.execute(
+                """
+                SELECT p.breed,
+                       vc.vac_type,
+                       m.med_name AS vaccine_name,
+                       COUNT(DISTINCT vac.pet_id) AS pets_vaccinated,
+                       COUNT(*) AS total_doses
+                FROM Vaccination vac
+                JOIN Pet p ON p.pet_id = vac.pet_id
+                JOIN Vaccine vc ON vc.barcode_no = vac.barcode_no
+                JOIN Medicine m ON m.barcode_no = vc.barcode_no
+                GROUP BY p.breed, vc.vac_type, m.med_name
+                ORDER BY p.breed ASC, total_doses DESC
+                """
+            )
+            rows = cur.fetchall()
+        return success(rows)
+    except Exception as exc:
+        logger.error("vaccination_coverage error: %s", exc)
+        return error("Failed to generate vaccination coverage report", 500)
+
+
+@bp.route("/veterinarian-vaccination-performance", methods=["GET"])
+@require_role("manager", "veterinarian")
+def veterinarian_vaccination_performance():
+    try:
+        months = request.args.get("months", default=6, type=int)
+        if months is None or months < 1 or months > 60:
+            return error("months must be between 1 and 60", 400)
+
+        with DBContext() as (conn, cur):
+            cur.execute(
+                """
+                SELECT vet.user_id,
+                       u.full_name AS vet_name,
+                       vet.specialization,
+                       br.name AS branch_name,
+                       COUNT(vac.vac_id) AS total_vaccinations,
+                       COUNT(DISTINCT vac.pet_id) AS unique_pets,
+                       COUNT(DISTINCT DATE(vac.vac_date)) AS days_worked,
+                       ROUND(
+                           COUNT(vac.vac_id) / NULLIF(COUNT(DISTINCT DATE(vac.vac_date)), 0),
+                           2
+                       ) AS avg_vaccinations_per_day
+                FROM Veterinarian vet
+                JOIN User u ON u.user_id = vet.user_id
+                JOIN Branch br ON br.branch_id = vet.branch_id
+                LEFT JOIN Vaccination vac
+                    ON vac.vet_id = vet.user_id
+                   AND vac.vac_date >= DATE_SUB(CURDATE(), INTERVAL %s MONTH)
+                GROUP BY vet.user_id, u.full_name, vet.specialization, br.name
+                ORDER BY total_vaccinations DESC, vet.user_id ASC
+                """,
+                (months,),
+            )
+            rows = cur.fetchall()
+        return success(rows)
+    except Exception as exc:
+        logger.error("veterinarian_vaccination_performance error: %s", exc)
+        return error("Failed to generate veterinarian performance report", 500)
 
 
 @bp.route("/branch-performance", methods=["GET"])
