@@ -205,7 +205,7 @@ export function normalizeReferral(r: any): Referral {
   const statusMap: Record<string, Referral['status']> = {
     'Pending': 'pending',
     'Accepted': 'accepted',
-    'Rejected': 'pending',
+    'Rejected': 'rejected',
   }
   return {
     id: String(r.referral_id),
