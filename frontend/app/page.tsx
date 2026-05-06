@@ -53,7 +53,11 @@ import type { Pet, Appointment, Invoice, MedicalRecord } from '@/lib/types'
 
 export default function VetClinicApp() {
   const { user, isLoggedIn, isLoading, logout } = useAuth()
-  const [currentView, setCurrentView] = useState('dashboard')
+  const [currentView, setCurrentView] = useState(() => {
+    if (typeof window !== 'undefined') return localStorage.getItem('currentView') || 'dashboard'
+    return 'dashboard'
+  })
+  const [referralKey, setReferralKey] = useState(0)
   const [showAppointmentWizard, setShowAppointmentWizard] = useState(false)
   const [referralModal, setReferralModal] = useState(false)
   const [evalModal, setEvalModal] = useState<{ open: boolean; vetId: string; vetName: string }>({
@@ -140,12 +144,14 @@ export default function VetClinicApp() {
 
   const handleViewChange = (view: string, petId?: string) => {
     setCurrentView(view)
+    localStorage.setItem('currentView', view)
     setShowAppointmentWizard(false)
     if (view === 'patients') setInitialRecordPetId(petId ?? null)
   }
 
   const handleLogout = () => {
     logout()
+    localStorage.removeItem('currentView')
     setCurrentView('dashboard')
   }
 
@@ -455,15 +461,13 @@ export default function VetClinicApp() {
                   <ArrowLeftRight className="w-4 h-4 mr-2" />Create Referral
                 </Button>
               </div>
-              <VetDashboard onNavigate={handleViewChange} referralsOnly />
+              <VetDashboard key={referralKey} onNavigate={handleViewChange} referralsOnly />
               <ReferralModal
                 open={referralModal}
                 onOpenChange={setReferralModal}
                 currentVetId={String(user.userId)}
                 pets={vetPets}
-                onSubmit={() => {
-                  // The modal handles API call now
-                }}
+                onSubmit={() => setReferralKey((k) => k + 1)}
               />
             </div>
           )
