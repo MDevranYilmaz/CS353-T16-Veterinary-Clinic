@@ -17,8 +17,8 @@ import { EvaluationModal } from '@/components/evaluation-modal'
 import { VetSchedule } from '@/components/vet-schedule'
 import { InventoryTable } from '@/components/inventory-table'
 import { ReferralModal } from '@/components/referral-modal'
-import { BoardingBookModal } from '@/components/boarding-book-modal'
 import { BoardingTable } from '@/components/boarding-table'
+import { OwnerBoardingView } from '@/components/owner-boarding-view'
 import {
   OverdueVaccinationsChart,
   StockConsumptionChart,
@@ -347,23 +347,11 @@ export default function VetClinicApp() {
 
         case 'pet-hotel':
           return (
-            <div className="space-y-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h1 className="text-2xl font-bold">Pet Hotel</h1>
-                  <p className="text-muted-foreground">Book a comfortable stay for your pet at one of our branches</p>
-                </div>
-                <Button onClick={() => setBoardingModal(true)}>
-                  <Hotel className="w-4 h-4 mr-2" />Book a Stay
-                </Button>
-              </div>
-              <BoardingBookModal
-                open={boardingModal}
-                onOpenChange={setBoardingModal}
-                pets={ownerPets}
-                onSuccess={() => setBoardingModal(false)}
-              />
-            </div>
+            <OwnerBoardingView
+              pets={ownerPets}
+              boardingModal={boardingModal}
+              setBoardingModal={setBoardingModal}
+            />
           )
 
         case 'invoices':

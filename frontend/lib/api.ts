@@ -520,6 +520,7 @@ export const medicalRecordApi = {
 export const boardingApi = {
   list: (branchId: number | string, availableOnly = false) =>
     get<any[]>(`/boarding?branch_id=${branchId}&available=${availableOnly}`),
+  myReservations: () => get<any[]>('/boarding/my-reservations'),
   book: (data: { boarding_unit_id: number; pet_id: number; check_in_date: string; check_out_date: string; feeding_instructions?: string }) =>
     post<any>('/boarding/book', data),
   checkout: (id: number | string) => put<any>(`/boarding/${id}/checkout`, {}),

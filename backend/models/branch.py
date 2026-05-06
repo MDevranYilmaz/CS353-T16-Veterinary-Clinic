@@ -27,13 +27,33 @@ class BoardingUnitModel:
         with DBContext() as (conn, cur):
             cur.execute(
                 """
-                SELECT bu.*, p.name AS pet_name
+                SELECT bu.*, p.name AS pet_name, b.name AS branch_name,
+                       u.full_name AS owner_name
                 FROM BoardingUnit bu
                 LEFT JOIN Pet p ON p.pet_id = bu.pet_id
+                LEFT JOIN Pet_Owner po ON po.user_id = p.owner_id
+                LEFT JOIN User u ON u.user_id = po.user_id
+                JOIN Branch b ON b.branch_id = bu.branch_id
                 WHERE bu.branch_id = %s
-                ORDER BY bu.size, bu.boarding_unit_id
+                ORDER BY bu.is_occupied DESC, bu.size, bu.boarding_unit_id
                 """,
                 (branch_id,),
+            )
+            return cur.fetchall()
+
+    @staticmethod
+    def list_by_owner(owner_id: int):
+        with DBContext() as (conn, cur):
+            cur.execute(
+                """
+                SELECT bu.*, p.name AS pet_name, b.name AS branch_name
+                FROM BoardingUnit bu
+                JOIN Pet p ON p.pet_id = bu.pet_id
+                JOIN Branch b ON b.branch_id = bu.branch_id
+                WHERE p.owner_id = %s AND bu.is_occupied = 1 AND bu.pet_id IS NOT NULL
+                ORDER BY bu.check_in_date
+                """,
+                (owner_id,),
             )
             return cur.fetchall()
 

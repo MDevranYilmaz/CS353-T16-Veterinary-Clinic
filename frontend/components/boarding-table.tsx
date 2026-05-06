@@ -5,7 +5,12 @@ import { boardingApi } from '@/lib/api'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Loader2, Wrench, LogOut, Hotel } from 'lucide-react'
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel,
+  AlertDialogContent, AlertDialogDescription,
+  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import { Loader2, Wrench, LogOut, Hotel, Calendar, UtensilsCrossed, User } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface BoardingTableProps {
@@ -22,6 +27,8 @@ export function BoardingTable({ branchId }: BoardingTableProps) {
   const [units, setUnits] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
+  const [confirmCheckout, setConfirmCheckout] = useState<any | null>(null)
+  const [confirmMaintenance, setConfirmMaintenance] = useState<any | null>(null)
 
   const load = () => {
     setLoading(true)
@@ -33,10 +40,11 @@ export function BoardingTable({ branchId }: BoardingTableProps) {
 
   useEffect(() => { load() }, [branchId])
 
-  const handleCheckout = async (id: string) => {
-    setActionLoading(id)
+  const handleCheckout = async (unit: any) => {
+    setActionLoading(String(unit.id))
+    setConfirmCheckout(null)
     try {
-      await boardingApi.checkout(id)
+      await boardingApi.checkout(unit.id)
       load()
     } catch (e) {
       console.error(e)
@@ -45,11 +53,12 @@ export function BoardingTable({ branchId }: BoardingTableProps) {
     }
   }
 
-  const handleMaintenance = async (id: string, currentStatus: string) => {
-    setActionLoading(id)
-    const goingIntoMaintenance = currentStatus !== 'maintenance'
+  const handleMaintenance = async (unit: any) => {
+    setActionLoading(String(unit.id))
+    setConfirmMaintenance(null)
+    const goingIntoMaintenance = unit.status !== 'maintenance'
     try {
-      await boardingApi.toggleMaintenance(id, goingIntoMaintenance)
+      await boardingApi.toggleMaintenance(unit.id, goingIntoMaintenance)
       load()
     } catch (e) {
       console.error(e)
@@ -88,7 +97,7 @@ export function BoardingTable({ branchId }: BoardingTableProps) {
         ))}
       </div>
 
-      {/* Units table */}
+      {/* Units list */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-lg">
@@ -98,80 +107,146 @@ export function BoardingTable({ branchId }: BoardingTableProps) {
         </CardHeader>
         <CardContent>
           {units.length === 0 ? (
-            <p className="text-center text-muted-foreground py-8">No boarding units found for this branch.</p>
+            <p className="text-center text-muted-foreground py-8">No boarding units at this branch.</p>
           ) : (
             <div className="space-y-3">
               {units.map((unit) => (
-                <div key={unit.id} className="flex items-center gap-4 p-4 rounded-lg border">
-                  {/* Unit info */}
-                  <div className="w-20 text-center shrink-0">
-                    <p className="font-bold text-lg">#{unit.id}</p>
-                    <p className="text-xs text-muted-foreground">{unit.size}</p>
-                  </div>
+                <div key={unit.id} className={cn(
+                  'p-4 rounded-lg border space-y-3',
+                  unit.status === 'occupied' && 'border-amber-200 bg-amber-50/30',
+                  unit.status === 'maintenance' && 'border-red-200 bg-red-50/30',
+                )}>
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 rounded-lg bg-muted flex flex-col items-center justify-center shrink-0">
+                        <p className="font-bold text-sm">#{unit.id}</p>
+                        <p className="text-xs text-muted-foreground">{unit.size}</p>
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline" className={cn('text-xs capitalize', statusStyle[unit.status])}>
+                            {unit.status}
+                          </Badge>
+                        </div>
+                        {unit.pet_name && (
+                          <p className="font-medium text-sm mt-1">{unit.pet_name}</p>
+                        )}
+                        {unit.owner_name && (
+                          <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+                            <User className="w-3 h-3" />{unit.owner_name}
+                          </p>
+                        )}
+                      </div>
+                    </div>
 
-                  {/* Status + pet */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <Badge variant="outline" className={cn('text-xs capitalize', statusStyle[unit.status])}>
-                        {unit.status}
-                      </Badge>
-                      {unit.petName && (
-                        <span className="text-sm font-medium">{unit.petName}</span>
+                    {/* Actions */}
+                    <div className="flex gap-2 shrink-0">
+                      {unit.status === 'occupied' && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+                          disabled={actionLoading === String(unit.id)}
+                          onClick={() => setConfirmCheckout(unit)}
+                        >
+                          {actionLoading === String(unit.id)
+                            ? <Loader2 className="w-3 h-3 animate-spin" />
+                            : <><LogOut className="w-3 h-3 mr-1" />Check Out</>}
+                        </Button>
+                      )}
+                      {unit.status === 'available' && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="border-amber-200 text-amber-700 hover:bg-amber-50"
+                          disabled={actionLoading === String(unit.id)}
+                          onClick={() => setConfirmMaintenance(unit)}
+                        >
+                          {actionLoading === String(unit.id)
+                            ? <Loader2 className="w-3 h-3 animate-spin" />
+                            : <><Wrench className="w-3 h-3 mr-1" />Mark Maintenance</>}
+                        </Button>
+                      )}
+                      {unit.status === 'maintenance' && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+                          disabled={actionLoading === String(unit.id)}
+                          onClick={() => setConfirmMaintenance(unit)}
+                        >
+                          {actionLoading === String(unit.id)
+                            ? <Loader2 className="w-3 h-3 animate-spin" />
+                            : <><Wrench className="w-3 h-3 mr-1" />Mark Available</>}
+                        </Button>
                       )}
                     </div>
-                    {unit.checkInDate && (
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {unit.checkInDate} → {unit.checkOutDate}
-                      </p>
-                    )}
-                    {unit.feedingInstructions && (
-                      <p className="text-xs text-muted-foreground mt-0.5 italic truncate max-w-xs">
-                        {unit.feedingInstructions}
-                      </p>
-                    )}
                   </div>
 
-                  {/* Actions */}
-                  <div className="flex gap-2 shrink-0">
-                    {unit.status === 'occupied' && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="border-emerald-200 text-emerald-700 hover:bg-emerald-50"
-                        disabled={actionLoading === String(unit.id)}
-                        onClick={() => handleCheckout(String(unit.id))}
-                      >
-                        {actionLoading === String(unit.id)
-                          ? <Loader2 className="w-3 h-3 animate-spin" />
-                          : <><LogOut className="w-3 h-3 mr-1" />Check Out</>}
-                      </Button>
-                    )}
-                    {unit.status !== 'occupied' && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className={cn(
-                          unit.status === 'maintenance'
-                            ? 'border-emerald-200 text-emerald-700 hover:bg-emerald-50'
-                            : 'border-amber-200 text-amber-700 hover:bg-amber-50'
-                        )}
-                        disabled={actionLoading === String(unit.id)}
-                        onClick={() => handleMaintenance(String(unit.id), unit.status)}
-                      >
-                        {actionLoading === String(unit.id)
-                          ? <Loader2 className="w-3 h-3 animate-spin" />
-                          : unit.status === 'maintenance'
-                            ? <><Wrench className="w-3 h-3 mr-1" />Remove Maintenance</>
-                            : <><Wrench className="w-3 h-3 mr-1" />Maintenance</>}
-                      </Button>
-                    )}
-                  </div>
+                  {/* Details row */}
+                  {(unit.check_in_date || unit.feeding_instructions) && (
+                    <div className="flex flex-wrap gap-4 text-sm text-muted-foreground pt-1 border-t">
+                      {unit.check_in_date && (
+                        <span className="flex items-center gap-1">
+                          <Calendar className="w-3.5 h-3.5" />
+                          {unit.check_in_date} → {unit.check_out_date}
+                        </span>
+                      )}
+                      {unit.feeding_instructions && (
+                        <span className="flex items-center gap-1">
+                          <UtensilsCrossed className="w-3.5 h-3.5" />
+                          {unit.feeding_instructions}
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
           )}
         </CardContent>
       </Card>
+
+      {/* Check out confirmation */}
+      <AlertDialog open={!!confirmCheckout} onOpenChange={(o) => !o && setConfirmCheckout(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Check out {confirmCheckout?.pet_name}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will free up Unit #{confirmCheckout?.id} ({confirmCheckout?.size}) and mark it as available.
+              The pet's stay record will be cleared.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction className="bg-emerald-600 hover:bg-emerald-700" onClick={() => handleCheckout(confirmCheckout)}>
+              Confirm Check Out
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Maintenance confirmation */}
+      <AlertDialog open={!!confirmMaintenance} onOpenChange={(o) => !o && setConfirmMaintenance(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {confirmMaintenance?.status === 'maintenance' ? 'Mark unit as available?' : 'Mark unit for maintenance?'}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {confirmMaintenance?.status === 'maintenance'
+                ? `Unit #${confirmMaintenance?.id} will be made available for booking again.`
+                : `Unit #${confirmMaintenance?.id} (${confirmMaintenance?.size}) will be taken out of service and cannot be booked until maintenance is complete.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => handleMaintenance(confirmMaintenance)}>
+              Confirm
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

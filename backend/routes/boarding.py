@@ -54,6 +54,27 @@ def list_boarding():
         return error("Failed to fetch boarding units", 500)
 
 
+@bp.route("/my-reservations", methods=["GET"])
+@require_role("pet_owner")
+def my_reservations():
+    try:
+        owner_id = g.user["user_id"]
+        units = BoardingUnitModel.list_by_owner(owner_id)
+        result = [{
+            "id": u["boarding_unit_id"],
+            "size": u["size"],
+            "branch_name": u.get("branch_name", ""),
+            "pet_name": u.get("pet_name", ""),
+            "check_in_date": str(u["check_in_date"]) if u.get("check_in_date") else None,
+            "check_out_date": str(u["check_out_date"]) if u.get("check_out_date") else None,
+            "feeding_instructions": u.get("feeding_instructions"),
+        } for u in units]
+        return success(result)
+    except Exception as exc:
+        logger.error("my_reservations error: %s", exc)
+        return error("Failed to fetch reservations", 500)
+
+
 @bp.route("/book", methods=["POST"])
 @require_role("pet_owner")
 def book_unit():
