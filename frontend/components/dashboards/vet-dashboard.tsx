@@ -110,7 +110,7 @@ export function VetDashboard({
     try {
       await referralApi.updateStatus(id, action)
       setReferrals((prev) =>
-        prev.map((r) => r.id === id ? { ...r, status: action === 'Accepted' ? 'accepted' : 'pending' } : r)
+        prev.map((r) => r.id === id ? { ...r, status: action === 'Accepted' ? 'accepted' : 'rejected' } : r)
       )
     } catch (e) {
       console.error('[VetDashboard] referral action error:', e)
@@ -200,11 +200,11 @@ export function VetDashboard({
                   </p>
                   {ref.status === 'pending' && ref.toVetId === String(user?.userId) && (
                     <div className="flex gap-2">
-                      <Button size="sm" className="flex-1" onClick={() => handleReferralAction(ref.id, 'Accepted')}>
-                        Accept
-                      </Button>
-                      <Button size="sm" variant="outline" className="flex-1" onClick={() => handleReferralAction(ref.id, 'Rejected')}>
+                      <Button size="sm" variant="outline" className="flex-1 border-red-200 text-red-600 hover:bg-red-50" onClick={() => handleReferralAction(ref.id, 'Rejected')}>
                         Decline
+                      </Button>
+                      <Button size="sm" className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => handleReferralAction(ref.id, 'Accepted')}>
+                        Accept
                       </Button>
                     </div>
                   )}
@@ -410,11 +410,11 @@ export function VetDashboard({
                     <p className="text-sm text-muted-foreground line-clamp-2">{ref.reason}</p>
                     <p className="text-xs text-muted-foreground">From: {ref.fromVetName}</p>
                     <div className="flex gap-2">
-                      <Button size="sm" className="flex-1" onClick={() => handleReferralAction(ref.id, 'Accepted')}>
-                        Accept
-                      </Button>
-                      <Button size="sm" variant="outline" className="flex-1" onClick={() => handleReferralAction(ref.id, 'Rejected')}>
+                      <Button size="sm" variant="outline" className="flex-1 border-red-200 text-red-600 hover:bg-red-50" onClick={() => handleReferralAction(ref.id, 'Rejected')}>
                         Decline
+                      </Button>
+                      <Button size="sm" className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => handleReferralAction(ref.id, 'Accepted')}>
+                        Accept
                       </Button>
                     </div>
                   </div>
