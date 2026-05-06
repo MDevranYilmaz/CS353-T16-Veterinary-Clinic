@@ -99,7 +99,7 @@ export function VetDashboard({
     try {
       await referralApi.updateStatus(id, action)
       setReferrals((prev) =>
-        prev.map((r) => r.id === id ? { ...r, status: action === 'Accepted' ? 'accepted' : 'pending' } : r)
+        prev.map((r) => r.id === id ? { ...r, status: action === 'Accepted' ? 'accepted' : 'rejected' } : r)
       )
     } catch (e) {
       console.error('[VetDashboard] referral action error:', e)
