@@ -82,7 +82,11 @@ export function VetDashboard({
       }
     }
     window.addEventListener('appointments:updated', handler)
-    return () => window.removeEventListener('appointments:updated', handler)
+    window.addEventListener('referrals:updated', handler)
+    return () => {
+      window.removeEventListener('appointments:updated', handler)
+      window.removeEventListener('referrals:updated', handler)
+    }
   }, [user])
 
   const handleStatusUpdate = async (id: string, status: 'Completed' | 'Cancelled') => {
@@ -120,6 +124,15 @@ export function VetDashboard({
       case 'completed': return 'bg-primary/10 text-primary border-0'
       case 'cancelled': return 'bg-muted text-muted-foreground border-0'
       default: return ''
+    }
+  }
+
+  const getReferralStatusStyle = (status: string) => {
+    switch (status.toLowerCase()) {
+      case 'accepted': return 'bg-emerald-50 text-emerald-700 border-emerald-200'
+      case 'pending':  return 'bg-amber-50 text-amber-700 border-amber-200'
+      case 'rejected': return 'bg-red-50 text-red-700 border-red-200'
+      default:         return 'bg-muted text-muted-foreground'
     }
   }
 
@@ -177,7 +190,7 @@ export function VetDashboard({
                 <div key={ref.id} className="p-3 rounded-lg border space-y-2">
                   <div className="flex items-center justify-between">
                     <p className="font-medium">{ref.petName}</p>
-                    <Badge variant="outline" className="text-xs capitalize">{ref.status}</Badge>
+                    <Badge variant="outline" className={cn('text-xs capitalize', getReferralStatusStyle(ref.status))}>{ref.status}</Badge>
                   </div>
                   <p className="text-sm text-muted-foreground line-clamp-2">{ref.reason}</p>
                   <p className="text-xs text-muted-foreground">
@@ -392,7 +405,7 @@ export function VetDashboard({
                   <div key={ref.id} className="p-3 rounded-lg border space-y-2">
                     <div className="flex items-center justify-between">
                       <p className="font-medium">{ref.petName}</p>
-                      <Badge variant="outline" className="text-xs">Pending</Badge>
+                      <Badge variant="outline" className={cn('text-xs', getReferralStatusStyle('pending'))}>Pending</Badge>
                     </div>
                     <p className="text-sm text-muted-foreground line-clamp-2">{ref.reason}</p>
                     <p className="text-xs text-muted-foreground">From: {ref.fromVetName}</p>

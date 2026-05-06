@@ -1,6 +1,6 @@
 import type { Pet, Veterinarian, Appointment, Medicine, Branch, Invoice, Referral, MedicalRecord, VaccinationSchedule, VaccinationPlan, VaccinationPlanItem, VaccinationScheduleItem } from './types'
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
 // ─── HTTP core ────────────────────────────────────────────────────────────────
 

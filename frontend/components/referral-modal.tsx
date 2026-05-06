@@ -72,6 +72,7 @@ export function ReferralModal({
       setSelectedVet(''); setReason('')
       onOpenChange(false)
       onSubmit?.()
+      window.dispatchEvent(new Event('referrals:updated'))
     } catch (e: any) {
       setError(e.message || 'Failed to create referral')
     } finally {

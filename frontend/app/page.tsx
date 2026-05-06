@@ -106,6 +106,18 @@ export default function VetClinicApp() {
     }
   }
 
+  // Fetch vet patients eagerly on login so referral modal has the list
+  useEffect(() => {
+    if (!user || user.role !== 'vet') return
+    appointmentApi.listByVet(user.userId)
+      .then(async (appts) => {
+        const petIds = [...new Set(appts.map((a) => a.petId))]
+        const petsData = await Promise.all(petIds.map((id) => petApi.get(id)))
+        setVetPets(petsData)
+      })
+      .catch(console.error)
+  }, [user])
+
   // Fetch vet patients & records when navigating to Patients view
   useEffect(() => {
     if (!user || user.role !== 'vet' || currentView !== 'patients') return
