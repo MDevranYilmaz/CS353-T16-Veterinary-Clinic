@@ -17,6 +17,8 @@ import { EvaluationModal } from '@/components/evaluation-modal'
 import { VetSchedule } from '@/components/vet-schedule'
 import { InventoryTable } from '@/components/inventory-table'
 import { ReferralModal } from '@/components/referral-modal'
+import { BoardingBookModal } from '@/components/boarding-book-modal'
+import { BoardingTable } from '@/components/boarding-table'
 import {
   OverdueVaccinationsChart,
   StockConsumptionChart,
@@ -47,6 +49,7 @@ import {
   User,
   Loader2,
   Star,
+  Hotel,
 } from 'lucide-react'
 import { petApi, appointmentApi, billingApi, referralApi } from '@/lib/api'
 import type { Pet, Appointment, Invoice, MedicalRecord } from '@/lib/types'
@@ -60,6 +63,7 @@ export default function VetClinicApp() {
   const [referralKey, setReferralKey] = useState(0)
   const [showAppointmentWizard, setShowAppointmentWizard] = useState(false)
   const [referralModal, setReferralModal] = useState(false)
+  const [boardingModal, setBoardingModal] = useState(false)
   const [evalModal, setEvalModal] = useState<{ open: boolean; vetId: string; vetName: string }>({
     open: false, vetId: '', vetName: '',
   })
@@ -341,6 +345,27 @@ export default function VetClinicApp() {
         case 'find-vet':
           return <VetFinder onBookAppointment={() => setShowAppointmentWizard(true)} />
 
+        case 'pet-hotel':
+          return (
+            <div className="space-y-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h1 className="text-2xl font-bold">Pet Hotel</h1>
+                  <p className="text-muted-foreground">Book a comfortable stay for your pet at one of our branches</p>
+                </div>
+                <Button onClick={() => setBoardingModal(true)}>
+                  <Hotel className="w-4 h-4 mr-2" />Book a Stay
+                </Button>
+              </div>
+              <BoardingBookModal
+                open={boardingModal}
+                onOpenChange={setBoardingModal}
+                pets={ownerPets}
+                onSuccess={() => setBoardingModal(false)}
+              />
+            </div>
+          )
+
         case 'invoices':
           return (
             <div className="space-y-6">
@@ -504,6 +529,19 @@ export default function VetClinicApp() {
             <div className="space-y-6">
               <h1 className="text-2xl font-bold">Billing & Invoices</h1>
               <ManagerDashboard onNavigate={handleViewChange} billingOnly />
+            </div>
+          )
+
+        case 'boarding':
+          return (
+            <div className="space-y-6">
+              <div>
+                <h1 className="text-2xl font-bold">Pet Hotel Management</h1>
+                <p className="text-muted-foreground">Manage boarding units, check out pets, and mark units for maintenance</p>
+              </div>
+              {user.branchId
+                ? <BoardingTable branchId={user.branchId} />
+                : <p className="text-muted-foreground">No branch assigned to your account.</p>}
             </div>
           )
 
