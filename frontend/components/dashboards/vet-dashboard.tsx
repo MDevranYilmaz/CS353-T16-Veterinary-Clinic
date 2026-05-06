@@ -25,6 +25,90 @@ interface VetDashboardProps {
   referralsOnly?: boolean
 }
 
+function ReferralsList({ referrals, userId, onAction, getReferralStatusStyle }: {
+  referrals: Referral[]
+  userId: string
+  onAction: (id: string, action: 'Accepted' | 'Rejected') => void
+  getReferralStatusStyle: (status: string) => string
+}) {
+  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'accepted' | 'rejected'>('all')
+  const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'name'>('newest')
+
+  const filtered = referrals
+    .filter((r) => statusFilter === 'all' || r.status.toLowerCase() === statusFilter)
+    .sort((a, b) => {
+      if (sortBy === 'name') return (a.petName ?? '').localeCompare(b.petName ?? '')
+      if (sortBy === 'oldest') return Number(a.id) - Number(b.id)
+      return Number(b.id) - Number(a.id) // newest first
+    })
+
+  return (
+    <Card>
+      <CardContent className="p-6 space-y-4">
+        {/* Filters */}
+        <div className="flex flex-wrap gap-2 items-center justify-between">
+          <div className="flex gap-2">
+            {(['all', 'pending', 'accepted', 'rejected'] as const).map((s) => (
+              <button
+                key={s}
+                onClick={() => setStatusFilter(s)}
+                className={cn(
+                  'px-3 py-1 rounded-full text-xs font-medium border transition-colors capitalize',
+                  statusFilter === s
+                    ? s === 'pending' ? 'bg-amber-50 text-amber-700 border-amber-300'
+                      : s === 'accepted' ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
+                      : s === 'rejected' ? 'bg-red-50 text-red-700 border-red-300'
+                      : 'bg-primary text-primary-foreground border-primary'
+                    : 'bg-background text-muted-foreground border-border hover:bg-muted'
+                )}
+              >{s}</button>
+            ))}
+          </div>
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
+            className="text-xs border rounded-md px-2 py-1 bg-background text-foreground"
+          >
+            <option value="newest">Newest first</option>
+            <option value="oldest">Oldest first</option>
+            <option value="name">Patient name</option>
+          </select>
+        </div>
+
+        {/* List */}
+        {filtered.length === 0 ? (
+          <p className="text-muted-foreground text-center py-8">No referrals found.</p>
+        ) : (
+          <div className="space-y-3">
+            {filtered.map((ref) => (
+              <div key={ref.id} className="p-3 rounded-lg border space-y-2">
+                <div className="flex items-center justify-between">
+                  <p className="font-medium">{ref.petName}</p>
+                  <Badge variant="outline" className={cn('text-xs capitalize', getReferralStatusStyle(ref.status))}>{ref.status}</Badge>
+                </div>
+                <p className="text-sm text-muted-foreground line-clamp-2">{ref.reason}</p>
+                <p className="text-xs text-muted-foreground">
+                  {ref.fromVetId === userId ? `To: ${ref.toVetName}` : `From: ${ref.fromVetName}`}
+                </p>
+                {ref.status === 'pending' && ref.toVetId === userId && (
+                  <div className="flex gap-2">
+                    <Button size="sm" className="flex-1 bg-red-600 hover:bg-red-700 text-white" onClick={() => onAction(ref.id, 'Rejected')}>
+                      Decline
+                    </Button>
+                    <Button size="sm" className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => onAction(ref.id, 'Accepted')}>
+                      Accept
+                    </Button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
 export function VetDashboard({
   onNavigate,
   scheduleOnly, patientsOnly, recordsOnly, vaccinationsOnly, referralsOnly,
@@ -180,40 +264,12 @@ export function VetDashboard({
 
   if (referralsOnly) {
     return (
-      <Card>
-        <CardContent className="p-6">
-          {referrals.length === 0 ? (
-            <p className="text-muted-foreground text-center py-8">No referrals found.</p>
-          ) : (
-            <div className="space-y-3">
-              {referrals.map((ref) => (
-                <div key={ref.id} className="p-3 rounded-lg border space-y-2">
-                  <div className="flex items-center justify-between">
-                    <p className="font-medium">{ref.petName}</p>
-                    <Badge variant="outline" className={cn('text-xs capitalize', getReferralStatusStyle(ref.status))}>{ref.status}</Badge>
-                  </div>
-                  <p className="text-sm text-muted-foreground line-clamp-2">{ref.reason}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {ref.fromVetId === String(user?.userId)
-                      ? `To: ${ref.toVetName}`
-                      : `From: ${ref.fromVetName}`}
-                  </p>
-                  {ref.status === 'pending' && ref.toVetId === String(user?.userId) && (
-                    <div className="flex gap-2">
-                      <Button size="sm" variant="outline" className="flex-1 border-red-200 text-red-600 hover:bg-red-50" onClick={() => handleReferralAction(ref.id, 'Rejected')}>
-                        Decline
-                      </Button>
-                      <Button size="sm" className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => handleReferralAction(ref.id, 'Accepted')}>
-                        Accept
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      <ReferralsList
+        referrals={referrals}
+        userId={String(user?.userId)}
+        onAction={handleReferralAction}
+        getReferralStatusStyle={getReferralStatusStyle}
+      />
     )
   }
 
