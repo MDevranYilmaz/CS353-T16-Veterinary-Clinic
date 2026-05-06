@@ -426,7 +426,15 @@ export default function VetClinicApp() {
                     records={vetRecords}
                     userRole="vet"
                     initialPetId={initialRecordPetId ?? undefined}
-                    onRecordAdded={() => handleViewChange('patients')}
+                    onRecordAdded={async () => {
+                      if (!user) return
+                      const appts = await appointmentApi.listByVet(user.userId)
+                      const petIds = [...new Set(appts.map((a) => a.petId))]
+                      const petsData = await Promise.all(petIds.map((id) => petApi.get(id)))
+                      const records = (await Promise.all(petsData.map((p) => petApi.medicalHistory(p.id)))).flat()
+                      setVetPets(petsData)
+                      setVetRecords(records)
+                    }}
                     showBackButton
                     onBack={() => setInitialRecordPetId(null)}
                   />
