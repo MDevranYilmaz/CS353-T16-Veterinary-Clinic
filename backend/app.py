@@ -44,12 +44,15 @@ def create_app():
     from routes.evaluations   import bp as evaluations_bp
     from routes.waste_logs    import bp as waste_logs_bp
     from routes.reports       import bp as reports_bp
+    from routes.boarding      import bp as boarding_bp
+
+    from routes.vaccination_plans import bp as vaccination_plans_bp
 
     for bp in (
         auth_bp, branches_bp, vets_bp, appointments_bp, pets_bp,
         medical_records_bp, prescriptions_bp, vaccinations_bp,
-        inventory_bp, billing_bp, referrals_bp, evaluations_bp,
-        waste_logs_bp, reports_bp,
+        vaccination_plans_bp, inventory_bp, billing_bp, referrals_bp, evaluations_bp,
+        waste_logs_bp, reports_bp, boarding_bp,
     ):
         app.register_blueprint(bp)
 

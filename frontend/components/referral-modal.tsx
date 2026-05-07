@@ -1,71 +1,86 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
+  Dialog, DialogContent, DialogDescription,
+  DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog'
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+  Select, SelectContent, SelectItem,
+  SelectTrigger, SelectValue,
 } from '@/components/ui/select'
-import { veterinarians, branches, pets } from '@/lib/mock-data'
-import { ArrowLeftRight, MapPin, Star, User } from 'lucide-react'
+import { ArrowLeftRight, Loader2, MapPin, Star } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { vetApi, branchApi, referralApi } from '@/lib/api'
+import type { Veterinarian, Branch, Pet } from '@/lib/types'
 
 interface ReferralModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   currentVetId: string
-  onSubmit: (referral: {
-    toVetId: string
-    petId: string
-    reason: string
-  }) => void
+  pets: Pet[]           // pass the vet's current patients
+  onSubmit?: () => void // callback after success
 }
 
-export function ReferralModal({ open, onOpenChange, currentVetId, onSubmit }: ReferralModalProps) {
-  const [selectedPet, setSelectedPet] = useState<string>('')
-  const [selectedBranch, setSelectedBranch] = useState<string>('')
-  const [selectedVet, setSelectedVet] = useState<string>('')
+export function ReferralModal({
+  open, onOpenChange, currentVetId, pets, onSubmit,
+}: ReferralModalProps) {
+  const [branches, setBranches] = useState<Branch[]>([])
+  const [vets, setVets] = useState<Veterinarian[]>([])
+  const [selectedPet, setSelectedPet] = useState('')
+  const [selectedBranch, setSelectedBranch] = useState('')
+  const [selectedVet, setSelectedVet] = useState('')
   const [reason, setReason] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
 
-  const availableVets = veterinarians.filter(
-    (v) =>
-      v.id !== currentVetId &&
-      v.available &&
-      (selectedBranch === '' || v.branchId === selectedBranch)
-  )
+  // Load branches on open
+  useEffect(() => {
+    if (!open) return
+    branchApi.list().then(setBranches).catch(console.error)
+  }, [open])
 
-  const handleSubmit = () => {
-    if (selectedPet && selectedVet && reason) {
-      onSubmit({
-        toVetId: selectedVet,
-        petId: selectedPet,
-        reason,
+  // Load vets when branch is selected
+  useEffect(() => {
+    if (!selectedBranch) { setVets([]); return }
+    setLoading(true)
+    vetApi.list({ branch_id: selectedBranch })
+      .then((data) => setVets(data.filter((v) => v.id !== currentVetId)))
+      .catch(console.error)
+      .finally(() => setLoading(false))
+  }, [selectedBranch, currentVetId])
+
+  const handleSubmit = async () => {
+    if (!selectedPet || !selectedVet || !reason.trim()) return
+    setSaving(true)
+    setError('')
+    try {
+      await referralApi.create({
+        pet_id: Number(selectedPet),
+        receiver_vet_id: Number(selectedVet),
+        reason: reason.trim(),
+        referral_date: new Date().toISOString().slice(0, 10),
       })
-      // Reset form
-      setSelectedPet('')
-      setSelectedBranch('')
-      setSelectedVet('')
-      setReason('')
+      // Reset
+      setSelectedPet(''); setSelectedBranch('')
+      setSelectedVet(''); setReason('')
       onOpenChange(false)
+      onSubmit?.()
+      window.dispatchEvent(new Event('referrals:updated'))
+    } catch (e: any) {
+      setError(e.message || 'Failed to create referral')
+    } finally {
+      setSaving(false)
     }
   }
 
-  const selectedVetData = veterinarians.find((v) => v.id === selectedVet)
+  const selectedVetData = vets.find((v) => v.id === selectedVet)
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -81,7 +96,7 @@ export function ReferralModal({ open, onOpenChange, currentVetId, onSubmit }: Re
         </DialogHeader>
 
         <div className="space-y-4 py-4">
-          {/* Select Patient */}
+          {/* Patient */}
           <div className="space-y-2">
             <Label>Patient</Label>
             <Select value={selectedPet} onValueChange={setSelectedPet}>
@@ -91,31 +106,26 @@ export function ReferralModal({ open, onOpenChange, currentVetId, onSubmit }: Re
               <SelectContent>
                 {pets.map((pet) => (
                   <SelectItem key={pet.id} value={pet.id}>
-                    <div className="flex items-center gap-2">
-                      <span>{pet.name}</span>
-                      <span className="text-muted-foreground">
-                        ({pet.breed} - {pet.ownerName})
-                      </span>
-                    </div>
+                    {pet.name} ({pet.breed})
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
 
-          {/* Select Branch */}
+          {/* Branch */}
           <div className="space-y-2">
             <Label>Destination Branch</Label>
-            <Select value={selectedBranch} onValueChange={setSelectedBranch}>
+            <Select value={selectedBranch} onValueChange={(v) => { setSelectedBranch(v); setSelectedVet('') }}>
               <SelectTrigger>
                 <SelectValue placeholder="Select branch" />
               </SelectTrigger>
               <SelectContent>
-                {branches.map((branch) => (
-                  <SelectItem key={branch.id} value={branch.id}>
+                {branches.map((b) => (
+                  <SelectItem key={b.id} value={b.id}>
                     <div className="flex items-center gap-2">
                       <MapPin className="w-4 h-4 text-muted-foreground" />
-                      <span>{branch.name}</span>
+                      {b.name}
                     </div>
                   </SelectItem>
                 ))}
@@ -123,52 +133,53 @@ export function ReferralModal({ open, onOpenChange, currentVetId, onSubmit }: Re
             </Select>
           </div>
 
-          {/* Select Specialist */}
-          <div className="space-y-2">
-            <Label>Specialist</Label>
-            <div className="space-y-2 max-h-48 overflow-y-auto">
-              {availableVets.length > 0 ? (
-                availableVets.map((vet) => (
-                  <button
-                    key={vet.id}
-                    onClick={() => setSelectedVet(vet.id)}
-                    className={cn(
-                      'flex items-center gap-3 w-full p-3 rounded-lg border text-left transition-colors',
-                      selectedVet === vet.id
-                        ? 'border-primary bg-primary/5'
-                        : 'hover:bg-muted/50'
-                    )}
-                  >
-                    <Avatar className="w-10 h-10">
-                      <AvatarImage src={vet.avatar} alt={vet.name} />
-                      <AvatarFallback className="bg-primary/10 text-primary">
-                        {vet.name.split(' ').map((n) => n[0]).join('')}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1">
-                      <p className="font-medium text-sm">{vet.name}</p>
-                      <p className="text-xs text-muted-foreground">{vet.specialization}</p>
-                      <div className="flex items-center gap-2 mt-0.5">
-                        <Star className="w-3 h-3 fill-warning text-warning" />
-                        <span className="text-xs">{vet.rating}</span>
-                        <span className="text-xs text-muted-foreground">•</span>
-                        <span className="text-xs text-muted-foreground">{vet.branchName}</span>
-                      </div>
-                    </div>
-                    {selectedVet === vet.id && (
-                      <Badge className="bg-primary/10 text-primary border-0">Selected</Badge>
-                    )}
-                  </button>
-                ))
+          {/* Specialist */}
+          {selectedBranch && (
+            <div className="space-y-2">
+              <Label>Specialist</Label>
+              {loading ? (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
+                  <Loader2 className="w-4 h-4 animate-spin" /> Loading vets...
+                </div>
+              ) : vets.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-2">No specialists at this branch</p>
               ) : (
-                <p className="text-sm text-muted-foreground text-center py-4">
-                  No specialists available at this branch
-                </p>
+                <div className="space-y-2 max-h-48 overflow-y-auto">
+                  {vets.map((vet) => (
+                    <button
+                      key={vet.id}
+                      onClick={() => setSelectedVet(vet.id)}
+                      className={cn(
+                        'flex items-center gap-3 w-full p-3 rounded-lg border text-left transition-colors',
+                        selectedVet === vet.id ? 'border-primary bg-primary/5' : 'hover:bg-muted/50'
+                      )}
+                    >
+                      <Avatar className="w-10 h-10">
+                        <AvatarFallback className="bg-primary/10 text-primary">
+                          {vet.name.split(' ').map((n) => n[0]).join('')}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1">
+                        <p className="font-medium text-sm">{vet.name}</p>
+                        <p className="text-xs text-muted-foreground">{vet.specialization}</p>
+                        {vet.rating > 0 && (
+                          <div className="flex items-center gap-1 mt-0.5">
+                            <Star className="w-3 h-3 fill-warning text-warning" />
+                            <span className="text-xs">{vet.rating.toFixed(1)}</span>
+                          </div>
+                        )}
+                      </div>
+                      {selectedVet === vet.id && (
+                        <Badge className="bg-primary/10 text-primary border-0">Selected</Badge>
+                      )}
+                    </button>
+                  ))}
+                </div>
               )}
             </div>
-          </div>
+          )}
 
-          {/* Reason for Referral */}
+          {/* Reason */}
           <div className="space-y-2">
             <Label>Reason for Referral</Label>
             <Textarea
@@ -179,37 +190,18 @@ export function ReferralModal({ open, onOpenChange, currentVetId, onSubmit }: Re
             />
           </div>
 
-          {/* Selected Specialist Preview */}
-          {selectedVetData && (
-            <div className="p-3 rounded-lg bg-muted/50 space-y-1">
-              <p className="text-xs text-muted-foreground">Referring to:</p>
-              <div className="flex items-center gap-3">
-                <Avatar className="w-8 h-8">
-                  <AvatarImage src={selectedVetData.avatar} alt={selectedVetData.name} />
-                  <AvatarFallback className="bg-primary/10 text-primary text-xs">
-                    {selectedVetData.name.split(' ').map((n) => n[0]).join('')}
-                  </AvatarFallback>
-                </Avatar>
-                <div>
-                  <p className="font-medium text-sm">{selectedVetData.name}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {selectedVetData.specialization} at {selectedVetData.branchName}
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
+          {error && <p className="text-sm text-destructive">{error}</p>}
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
             Cancel
           </Button>
           <Button
             onClick={handleSubmit}
-            disabled={!selectedPet || !selectedVet || !reason}
+            disabled={!selectedPet || !selectedVet || !reason.trim() || saving}
           >
-            Create Referral
+            {saving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Creating...</> : 'Create Referral'}
           </Button>
         </DialogFooter>
       </DialogContent>
