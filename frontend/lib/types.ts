@@ -232,3 +232,16 @@ export interface ApplicablePlan {
   vaccine_count: number
   created_by_name?: string
 }
+
+export interface EvaluationReview {
+  eval_id: number
+  points: number
+  date: string
+  comment?: string | null
+  owner_name: string
+}
+
+export interface VetEvaluations {
+  rating: { avg_rating: number; total: number } | null
+  reviews: EvaluationReview[]
+}
