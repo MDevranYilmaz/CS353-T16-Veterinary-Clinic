@@ -36,6 +36,7 @@ import { cn } from '@/lib/utils'
 interface AppointmentWizardProps {
   onComplete: () => void
   onCancel: () => void
+  initialPetId?: string
 }
 
 const appointmentTypes = [
@@ -46,10 +47,15 @@ const appointmentTypes = [
   { id: 'followup', label: 'Follow-up', description: 'Post-treatment checkup' },
 ]
 
-export function AppointmentWizard({ onComplete, onCancel }: AppointmentWizardProps) {
+const fallbackSlots = [
+  '09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
+  '14:00', '14:30', '15:00', '15:30', '16:00', '16:30',
+]
+
+export function AppointmentWizard({ onComplete, onCancel, initialPetId }: AppointmentWizardProps) {
   const { user } = useAuth()
   const [step, setStep] = useState(1)
-  const [selectedPet, setSelectedPet] = useState<string>('')
+  const [selectedPet, setSelectedPet] = useState<string>(initialPetId || '')
   const [selectedType, setSelectedType] = useState<string>('')
   const [selectedBranch, setSelectedBranch] = useState<string>('')
   const [selectedVet, setSelectedVet] = useState<string>('')

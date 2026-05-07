@@ -102,7 +102,6 @@ export function PetCard({ pet, onViewDetails, onBookAppointment, onViewRecords, 
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={onViewDetails}>View Details</DropdownMenuItem>
                 <DropdownMenuItem onClick={onViewRecords}>Medical Records</DropdownMenuItem>
                 <DropdownMenuItem onClick={onBookAppointment}>Book Appointment</DropdownMenuItem>
               </DropdownMenuContent>
