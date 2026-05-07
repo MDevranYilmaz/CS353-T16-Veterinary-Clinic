@@ -31,6 +31,7 @@ interface SidebarProps {
   userName: string
   userAvatar?: string
   onLogout?: () => void
+  onSettingsOpen?: () => void
 }
 
 const roleNavItems: Record<UserRole, { id: string; label: string; icon: React.ElementType }[]> = {
@@ -59,7 +60,7 @@ const roleNavItems: Record<UserRole, { id: string; label: string; icon: React.El
   ],
 }
 
-export function Sidebar({ currentRole, currentView, onViewChange, userName, userAvatar, onLogout }: SidebarProps) {
+export function Sidebar({ currentRole, currentView, onViewChange, userName, userAvatar, onLogout, onSettingsOpen }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false)
   const navItems = roleNavItems[currentRole]
 
@@ -149,7 +150,12 @@ export function Sidebar({ currentRole, currentView, onViewChange, userName, user
           )}
           {!collapsed && (
             <div className="flex gap-1">
-              <Button variant="ghost" size="icon" className="w-8 h-8 text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent/50">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="w-8 h-8 text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent/50"
+                onClick={onSettingsOpen}
+              >
                 <Settings className="w-4 h-4" />
               </Button>
               <Button

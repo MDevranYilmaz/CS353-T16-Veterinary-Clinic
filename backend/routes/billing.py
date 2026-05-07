@@ -79,6 +79,30 @@ def pay_bill(bill_id):
         return error("Failed to process payment", 500)
 
 
+@bp.route("/outstanding/pet/<int:pet_id>", methods=["GET"])
+@require_auth
+def outstanding_for_pet(pet_id):
+    try:
+        with DBContext() as (conn, cur):
+            cur.execute(
+                "SELECT bill_id, generated_date, total_amount FROM OutstandingBills WHERE pet_id = %s",
+                (pet_id,),
+            )
+            rows = cur.fetchall()
+        bills = [
+            {
+                "bill_id": r["bill_id"],
+                "generated_date": str(r["generated_date"]),
+                "total_amount": float(r["total_amount"]),
+            }
+            for r in rows
+        ]
+        return success(bills)
+    except Exception as exc:
+        logger.error("outstanding_for_pet error: %s", exc)
+        return error("Failed to fetch outstanding bills", 500)
+
+
 @bp.route("", methods=["POST"])
 @require_role("manager", "veterinarian")
 def manual_create_bill():

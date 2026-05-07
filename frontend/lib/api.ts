@@ -419,6 +419,8 @@ export const billingApi = {
   },
   pay: (billId: number | string) =>
     put<any>(`/billing/${billId}/pay`, {}),
+  outstandingForPet: (petId: number | string): Promise<{ bill_id: number; generated_date: string; total_amount: number }[]> =>
+    get<any>(`/billing/outstanding/pet/${petId}`),
 }
 
 // ─── Inventory ───────────────────────────────────────────────────────────────
@@ -547,9 +549,14 @@ export const medicalRecordApi = {
 // ─── Boarding ────────────────────────────────────────────────────────────────
 
 export const boardingApi = {
-  list: (branchId: number | string, availableOnly = false) =>
-    get<any[]>(`/boarding?branch_id=${branchId}&available=${availableOnly}`),
+  list: (branchId: number | string, availableOnly = false, checkIn?: string, checkOut?: string) => {
+    let url = `/boarding?branch_id=${branchId}&available=${availableOnly}`
+    if (checkIn) url += `&check_in=${checkIn}`
+    if (checkOut) url += `&check_out=${checkOut}`
+    return get<any[]>(url)
+  },
   myReservations: () => get<any[]>('/boarding/my-reservations'),
+  myPastStays: () => get<any[]>('/boarding/my-past-stays'),
   book: (data: { boarding_unit_id: number; pet_id: number; check_in_date: string; check_out_date: string; feeding_instructions?: string }) =>
     post<any>('/boarding/book', data),
   checkout: (id: number | string) => put<any>(`/boarding/${id}/checkout`, {}),

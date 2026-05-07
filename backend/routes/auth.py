@@ -71,7 +71,7 @@ def register():
             identity=str(user_id),
             additional_claims={"user_id": user_id, "role": role, "branch_id": branch_id},
         )
-        return success({"user_id": user_id, "role": role, "token": token}, "User registered successfully", 201)
+        return success({"user_id": user_id, "role": role, "token": token, "full_name": data["full_name"], "email": data["email"], "branch_id": branch_id}, "User registered successfully", 201)
 
     except Exception as exc:
         logger.error("Register error: %s", exc)

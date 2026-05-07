@@ -18,12 +18,14 @@ def list_boarding():
         branch_id = request.args.get("branch_id")
         size = request.args.get("size")
         available_only = request.args.get("available") == "true"
+        check_in = request.args.get("check_in")
+        check_out = request.args.get("check_out")
 
         if not branch_id:
             return error("branch_id is required", 400)
 
         if available_only:
-            units = BoardingUnitModel.list_available(int(branch_id), size)
+            units = BoardingUnitModel.list_available(int(branch_id), size, check_in, check_out)
         else:
             units = BoardingUnitModel.list_by_branch(int(branch_id))
 
@@ -43,6 +45,7 @@ def list_boarding():
                 "branch_name": u.get("branch_name", ""),
                 "pet_id": u.get("pet_id"),
                 "pet_name": u.get("pet_name"),
+                "owner_name": u.get("owner_name"),
                 "check_in_date": str(u["check_in_date"]) if u.get("check_in_date") else None,
                 "check_out_date": str(u["check_out_date"]) if u.get("check_out_date") else None,
                 "feeding_instructions": u.get("feeding_instructions"),
@@ -75,6 +78,29 @@ def my_reservations():
         return error("Failed to fetch reservations", 500)
 
 
+@bp.route("/my-past-stays", methods=["GET"])
+@require_role("pet_owner")
+def my_past_stays():
+    try:
+        owner_id = g.user["user_id"]
+        rows = BoardingUnitModel.past_stays_by_owner(owner_id)
+        result = [{
+            "history_id": r["history_id"],
+            "boarding_unit_id": r["boarding_unit_id"],
+            "size": r["size"],
+            "branch_name": r.get("branch_name", ""),
+            "pet_name": r.get("pet_name", ""),
+            "check_in_date": str(r["check_in_date"]) if r.get("check_in_date") else None,
+            "check_out_date": str(r["check_out_date"]) if r.get("check_out_date") else None,
+            "feeding_instructions": r.get("feeding_instructions"),
+            "checked_out_at": str(r["checked_out_at"]) if r.get("checked_out_at") else None,
+        } for r in rows]
+        return success(result)
+    except Exception as exc:
+        logger.error("my_past_stays error: %s", exc)
+        return error("Failed to fetch past stays", 500)
+
+
 @bp.route("/book", methods=["POST"])
 @require_role("pet_owner")
 def book_unit():
@@ -90,6 +116,9 @@ def book_unit():
         return error("check_out_date must be after check_in_date", 400)
 
     try:
+        if BoardingUnitModel.pet_has_overlapping_booking(int(data["pet_id"]), data["check_in_date"], data["check_out_date"]):
+            return error("This pet already has a booking for those dates", 409)
+
         booked = BoardingUnitModel.book(
             boarding_unit_id=int(data["boarding_unit_id"]),
             pet_id=int(data["pet_id"]),

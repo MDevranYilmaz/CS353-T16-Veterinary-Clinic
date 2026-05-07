@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/lib/auth-context'
-import { petApi, branchApi, vetApi, appointmentApi } from '@/lib/api'
+import { petApi, branchApi, vetApi, appointmentApi, billingApi } from '@/lib/api'
 import type { Pet, Branch, Veterinarian } from '@/lib/types'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -28,7 +28,9 @@ import {
   MapPin,
   Star,
   Loader2,
+  AlertCircle,
 } from 'lucide-react'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { cn } from '@/lib/utils'
 
 interface AppointmentWizardProps {
@@ -42,11 +44,6 @@ const appointmentTypes = [
   { id: 'surgery', label: 'Surgery', description: 'Surgical procedures' },
   { id: 'emergency', label: 'Emergency', description: 'Urgent care needed' },
   { id: 'followup', label: 'Follow-up', description: 'Post-treatment checkup' },
-]
-
-const fallbackSlots = [
-  '09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
-  '14:00', '14:30', '15:00', '15:30', '16:00', '16:30',
 ]
 
 export function AppointmentWizard({ onComplete, onCancel }: AppointmentWizardProps) {
@@ -64,10 +61,12 @@ export function AppointmentWizard({ onComplete, onCancel }: AppointmentWizardPro
   const [ownerPets, setOwnerPets] = useState<Pet[]>([])
   const [branches, setBranches] = useState<Branch[]>([])
   const [vets, setVets] = useState<Veterinarian[]>([])
-  const [availableSlots, setAvailableSlots] = useState<string[]>(fallbackSlots)
+  const [availableSlots, setAvailableSlots] = useState<string[]>([])
   const [loadingPets, setLoadingPets] = useState(false)
   const [loadingVets, setLoadingVets] = useState(false)
   const [loadingSlots, setLoadingSlots] = useState(false)
+  const [now, setNow] = useState(() => new Date())
+  const [outstandingBills, setOutstandingBills] = useState<{ bill_id: number; generated_date: string; total_amount: number }[]>([])
 
   useEffect(() => {
     if (!user) return
@@ -80,6 +79,13 @@ export function AppointmentWizard({ onComplete, onCancel }: AppointmentWizardPro
       setBranches(branchList)
     }).catch(console.error).finally(() => setLoadingPets(false))
   }, [user])
+
+  useEffect(() => {
+    if (!selectedPet) { setOutstandingBills([]); return }
+    billingApi.outstandingForPet(selectedPet)
+      .then(setOutstandingBills)
+      .catch(() => setOutstandingBills([]))
+  }, [selectedPet])
 
   useEffect(() => {
     if (!selectedBranch) return
@@ -99,20 +105,25 @@ export function AppointmentWizard({ onComplete, onCancel }: AppointmentWizardPro
     setSelectedTime('')
     vetApi.availableSlots(selectedVet, dateStr)
       .then((slots) => {
-        let final = slots.length > 0 ? slots : fallbackSlots
+        let final = slots
         // if user selected today, filter out past slots immediately
         if (isSameDay(selectedDate, new Date())) {
           final = final.filter((t) => !isSlotInPast(t))
         }
         setAvailableSlots(final)
       })
-      .catch(() => setAvailableSlots(fallbackSlots))
+      .catch(() => setAvailableSlots([]))
       .finally(() => setLoadingSlots(false))
   }, [selectedVet, selectedDate])
 
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(new Date()), 30000)
+    return () => window.clearInterval(timer)
+  }, [])
+
   const canProceed = () => {
     switch (step) {
-      case 1: return selectedPet && selectedType
+      case 1: return selectedPet && selectedType && outstandingBills.length === 0
       case 2: return selectedBranch && selectedVet
       case 3: return selectedDate && selectedTime && !isSlotInPast(selectedTime)
       case 4: return true
@@ -127,13 +138,17 @@ export function AppointmentWizard({ onComplete, onCancel }: AppointmentWizardPro
 
   const isSlotInPast = (time: string) => {
     if (!selectedDate) return false
-    const now = new Date()
     // Only consider past for today
     if (!isSameDay(selectedDate, now)) return false
     const [hh, mm] = time.split(':').map((s) => Number(s))
     const slotDate = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate(), hh, mm, 0)
     return slotDate.getTime() <= now.getTime()
   }
+
+  useEffect(() => {
+    if (!selectedTime || !isSlotInPast(selectedTime)) return
+    setSelectedTime('')
+  }, [now, selectedDate, selectedTime])
 
   const handleNext = async () => {
     if (step < 4 && canProceed()) {
@@ -168,6 +183,7 @@ export function AppointmentWizard({ onComplete, onCancel }: AppointmentWizardPro
   const selectedVetData = vets.find((v) => v.id === selectedVet)
   const selectedBranchData = branches.find((b) => b.id === selectedBranch)
   const selectedTypeData = appointmentTypes.find((t) => t.id === selectedType)
+  const visibleSlots = availableSlots.filter((time) => !isSlotInPast(time))
 
   return (
     <div className="space-y-6">
@@ -250,6 +266,22 @@ export function AppointmentWizard({ onComplete, onCancel }: AppointmentWizardPro
                   </div>
                 )}
               </div>
+
+              {outstandingBills.length > 0 && (
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertTitle>Outstanding Unpaid Bills</AlertTitle>
+                  <AlertDescription>
+                    <p className="mb-1">
+                      {selectedPetData?.name ?? 'This pet'} has {outstandingBills.length} unpaid bill{outstandingBills.length > 1 ? 's' : ''} totalling{' '}
+                      <strong>
+                        ${outstandingBills.reduce((sum, b) => sum + b.total_amount, 0).toFixed(2)}
+                      </strong>.
+                    </p>
+                    <p>Please settle all outstanding bills before booking a new appointment.</p>
+                  </AlertDescription>
+                </Alert>
+              )}
 
               <div className="space-y-3">
                 <Label>Appointment Type</Label>
@@ -374,28 +406,34 @@ export function AppointmentWizard({ onComplete, onCancel }: AppointmentWizardPro
                     <Loader2 className="w-6 h-6 animate-spin text-primary" />
                   </div>
                 ) : (
-                  <div className="grid grid-cols-3 gap-2">
-                    {availableSlots.map((time) => {
-                      const disabled = isSlotInPast(time)
-                      return (
-                        <button
-                          key={time}
-                          onClick={() => !disabled && setSelectedTime(time)}
-                          disabled={disabled}
-                          className={cn(
-                            'flex items-center justify-center gap-2 p-3 rounded-lg border transition-colors',
-                            disabled ? 'opacity-50 cursor-not-allowed' : '',
-                            selectedTime === time
-                              ? 'border-primary bg-primary text-primary-foreground'
-                              : 'hover:bg-muted/50'
-                          )}
-                        >
-                          <Clock className="w-4 h-4" />
-                          {time}
-                        </button>
-                      )
-                    })}
-                  </div>
+                  visibleSlots.length === 0 ? (
+                    <p className="text-sm text-muted-foreground py-2">
+                      No available time slots for the selected date.
+                    </p>
+                  ) : (
+                    <div className="grid grid-cols-3 gap-2">
+                      {visibleSlots.map((time) => {
+                        const disabled = isSlotInPast(time)
+                        return (
+                          <button
+                            key={time}
+                            onClick={() => !disabled && setSelectedTime(time)}
+                            disabled={disabled}
+                            className={cn(
+                              'flex items-center justify-center gap-2 p-3 rounded-lg border transition-colors',
+                              disabled ? 'opacity-50 cursor-not-allowed' : '',
+                              selectedTime === time
+                                ? 'border-primary bg-primary text-primary-foreground'
+                                : 'hover:bg-muted/50'
+                            )}
+                          >
+                            <Clock className="w-4 h-4" />
+                            {time}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )
                 )}
 
                 <div className="space-y-2 mt-4">
