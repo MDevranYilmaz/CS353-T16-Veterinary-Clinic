@@ -157,13 +157,13 @@ Each file is a Flask `Blueprint` registered in `app.py`. Every route has a `try/
 | `pets.py` | `/pets` | `GET /pets`, `POST /pets`, `GET /pets/<id>`, `GET /pets/<id>/medical-history`, `GET /pets/<id>/prescriptions`, `GET /pets/<id>/vaccinations`, `GET /pets/<id>/referrals` |
 | `medical_records.py` | `/medical-records` | `POST /medical-records`, `GET /medical-records/<pet_id>` |
 | `prescriptions.py` | `/prescriptions` | `POST /prescriptions` (checks stock), `GET /prescriptions/<id>` |
-| `vaccinations.py` | `/vaccinations` | `POST /vaccinations`, `GET /vaccinations/status/<pet_id>`, `GET /vaccinations/overdue`, `GET /vaccinations/analytics` |
+| `vaccinations.py` | `/vaccinations` | `POST /vaccinations`, `GET /vaccinations/recommendations`, `GET /vaccinations/pet/<pet_id>/vaccine/<barcode_no>/latest`, `GET /vaccinations/<vac_id>`, `GET /vaccinations/status/<pet_id>`, `GET /vaccinations/status/<pet_id>/overdue`, `GET /vaccinations/status/<pet_id>/upcoming`, `GET /vaccinations/pet-profile/<pet_id>/summary`, `GET /vaccinations/overdue`, `GET /vaccinations/overdue-summary`, `GET /vaccinations/analytics`, `GET /vaccinations/available-vaccines`, `GET /vaccinations/recommended/<pet_id>`, `GET /vaccinations/availability`, `GET /vaccinations/upcoming-appointments/<pet_id>` |
 | `inventory.py` | `/inventory` | `GET /inventory/medicines`, `GET /inventory/<branch_id>`, `POST /inventory/<branch_id>`, `GET /inventory/low-stock/<branch_id>`, `PUT /inventory/<branch_id>/<barcode>/threshold` |
 | `billing.py` | `/billing` | `GET /billing`, `GET /billing/<id>`, `PUT /billing/<id>/pay`, `POST /billing` |
 | `referrals.py` | `/referrals` | `GET /referrals`, `POST /referrals`, `PUT /referrals/<id>/status` |
 | `evaluations.py` | `/evaluations` | `POST /evaluations`, `GET /evaluations/vet/<vet_id>` |
 | `waste_logs.py` | `/waste-logs` | `GET /waste-logs/<branch_id>`, `POST /waste-logs` |
-| `reports.py` | `/reports` | `GET /reports/stock-consumption/<branch_id>`, `GET /reports/waste-stats/<branch_id>`, `GET /reports/cost-breakdown/<branch_id>`, `GET /reports/vaccination-compliance`, `GET /reports/vaccination-trends`, `GET /reports/branch-performance` |
+| `reports.py` | `/reports` | `GET /reports/stock-consumption/<branch_id>`, `GET /reports/waste-stats/<branch_id>`, `GET /reports/cost-breakdown/<branch_id>`, `GET /reports/vaccination-compliance`, `GET /reports/vaccination-trends`, `GET /reports/vaccination-most-administered`, `GET /reports/vaccination-overdue-rates`, `GET /reports/vaccination-coverage`, `GET /reports/veterinarian-vaccination-performance`, `GET /reports/branch-performance` |
 
 **To add a new route file**: create the blueprint, add its endpoints, then import and register it in `app.py` inside the `create_app()` function.
 

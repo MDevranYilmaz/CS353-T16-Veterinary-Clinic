@@ -477,6 +477,12 @@ export const vaccinationApi = {
     const data = await get<any[]>(`/vaccinations/status/${petId}`)
     return (data || []).map(normalizeVaccination)
   },
+  overdueForPet: (petId: number | string) =>
+    get<any[]>(`/vaccinations/status/${petId}/overdue`),
+  upcomingForPet: (petId: number | string, days = 60) =>
+    get<any[]>(`/vaccinations/status/${petId}/upcoming?days=${days}`),
+  petProfileSummary: (petId: number | string) =>
+    get<any>(`/vaccinations/pet-profile/${petId}/summary`),
   overdue: async (branchId?: number | string): Promise<VaccinationSchedule[]> => {
     const path = branchId ? `/vaccinations/overdue?branch_id=${branchId}` : '/vaccinations/overdue'
     const data = await get<any[]>(path)
@@ -484,6 +490,29 @@ export const vaccinationApi = {
   },
   record: (data: { vac_date: string; pet_id: number; barcode_no: string; next_due_date?: string }) =>
     post<{ vac_id: number }>('/vaccinations', data),
+  recommendations: (query: string) =>
+    get<any[]>(`/vaccinations/recommendations?q=${encodeURIComponent(query)}`),
+  latestForPetVaccine: (petId: number | string, barcodeNo: string) =>
+    get<any>(`/vaccinations/pet/${petId}/vaccine/${encodeURIComponent(barcodeNo)}/latest`),
+  getRecord: (vacId: number | string) => get<any>(`/vaccinations/${vacId}`),
+  recommended: (petId: number | string) => get<any>(`/vaccinations/recommended/${petId}`),
+  availableVaccines: (vetId?: number | string) =>
+    get<any[]>(vetId ? `/vaccinations/available-vaccines?vet_id=${vetId}` : '/vaccinations/available-vaccines'),
+  checkAvailability: (vetId: number | string, barcodeNo: string, date?: string) => {
+    const params = new URLSearchParams({ vet_id: String(vetId), barcode_no: barcodeNo })
+    if (date) params.set('date', date)
+    return get<{ available: boolean; stock: number; batch_number?: string; expiration_date?: string }>(
+      `/vaccinations/availability?${params}`
+    )
+  },
+  upcomingAppointments: (petId: number | string) => get<any[]>(`/vaccinations/upcoming-appointments/${petId}`),
+  overdueSummary: (branchId?: number | string, thresholdDays?: number) => {
+    const params = new URLSearchParams()
+    if (branchId) params.set('branch_id', String(branchId))
+    if (typeof thresholdDays === 'number') params.set('threshold_days', String(thresholdDays))
+    const query = params.toString()
+    return get<any>(query ? `/vaccinations/overdue-summary?${query}` : '/vaccinations/overdue-summary')
+  },
 }
 
 // ─── Referrals ───────────────────────────────────────────────────────────────
@@ -550,6 +579,20 @@ export const wasteLogApi = {
 export const reportApi = {
   vaccinationTrends: () => get<any[]>('/reports/vaccination-trends'),
   compliance: () => get<any[]>('/reports/vaccination-compliance'),
+  mostAdministeredVaccines: (branchId?: number | string) =>
+    get<any[]>(
+      branchId
+        ? `/reports/vaccination-most-administered?branch_id=${branchId}`
+        : '/reports/vaccination-most-administered'
+    ),
+  overdueRates: () => get<any[]>('/reports/vaccination-overdue-rates'),
+  vaccinationCoverage: () => get<any[]>('/reports/vaccination-coverage'),
+  veterinarianVaccinationPerformance: (months?: number) =>
+    get<any[]>(
+      typeof months === 'number'
+        ? `/reports/veterinarian-vaccination-performance?months=${months}`
+        : '/reports/veterinarian-vaccination-performance'
+    ),
   branchPerformance: () => get<any[]>('/reports/branch-performance'),
   stockConsumption: (branchId: number | string) => get<any[]>(`/reports/stock-consumption/${branchId}`),
   wasteStats: (branchId: number | string) => get<any[]>(`/reports/waste-stats/${branchId}`),

@@ -134,7 +134,7 @@ export interface Referral {
   petName: string
   reason: string
   date: string
-  status: 'pending' | 'accepted' | 'completed'
+  status: 'pending' | 'accepted' | 'rejected' | 'completed'
 }
 
 export interface StockEntry {
