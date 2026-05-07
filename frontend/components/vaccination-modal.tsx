@@ -1,8 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { vaccinationApi } from '@/lib/api'
-import type { Medicine } from '@/lib/types'
+import { useState, useEffect } from 'react'
+import { vaccinationApi, vaccinationPlanApi } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -21,14 +20,22 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Syringe, Loader2, AlertTriangle } from 'lucide-react'
+import { Syringe, Loader2, AlertTriangle, Info } from 'lucide-react'
+
+interface VaccinationPlan {
+  pet_vaccination_plan_id: number
+  vaccine_barcode: string
+  vaccine_name?: string
+  vac_type?: string
+  repeat_every_months?: number
+  notes?: string
+}
 
 interface VaccinationModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   petId: string
   petName: string
-  vaccines: Medicine[]
   onSuccess?: () => void
 }
 
@@ -37,37 +44,54 @@ export function VaccinationModal({
   onOpenChange,
   petId,
   petName,
-  vaccines,
   onSuccess,
 }: VaccinationModalProps) {
   const today = new Date().toISOString().slice(0, 10)
-  const [selectedVaccine, setSelectedVaccine] = useState('')
+  const [plans, setPlans] = useState<VaccinationPlan[]>([])
+  const [selectedPlanId, setSelectedPlanId] = useState('')
   const [vacDate, setVacDate] = useState(today)
-  const [nextDue, setNextDue] = useState('')
   const [saving, setSaving] = useState(false)
+  const [loading, setLoading] = useState(false)
 
-  const vaccineOptions = vaccines.filter((m) => m.category === 'vaccine')
+  // Fetch pet's vaccination plans when modal opens
+  useEffect(() => {
+    if (!open || !petId) return
+
+    const fetchPlans = async () => {
+      setLoading(true)
+      try {
+        const schedule = await vaccinationPlanApi.getPetSchedule(petId)
+        setPlans(schedule || [])
+      } catch (e) {
+        console.error('[VaccinationModal] Failed to fetch vaccination plans:', e)
+        setPlans([])
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchPlans()
+  }, [open, petId])
+
+  const selectedPlan = plans.find((p) => p.pet_vaccination_plan_id === Number(selectedPlanId))
 
   const handleClose = () => {
     if (saving) return
-    setSelectedVaccine('')
+    setSelectedPlanId('')
     setVacDate(today)
-    setNextDue('')
     onOpenChange(false)
   }
 
   const handleSubmit = async () => {
-    if (!selectedVaccine || !petId) return
+    if (!selectedPlanId || !petId) return
     setSaving(true)
     try {
       await vaccinationApi.record({
         vac_date: vacDate,
         pet_id: Number(petId),
-        barcode_no: selectedVaccine,
-        next_due_date: nextDue || undefined,
+        pet_vaccination_plan_id: Number(selectedPlanId),
       })
-      setSelectedVaccine('')
-      setNextDue('')
+      setSelectedPlanId('')
       onSuccess?.()
       onOpenChange(false)
     } catch (e) {
@@ -91,28 +115,40 @@ export function VaccinationModal({
         </DialogHeader>
 
         <div className="space-y-4 py-2">
-          {/* Vaccine */}
+          {/* Vaccination Plan */}
           <div className="space-y-2">
-            <Label>Vaccine</Label>
-            {vaccineOptions.length === 0 ? (
+            <Label>Vaccination Plan</Label>
+            {loading ? (
+              <div className="flex items-center gap-2 p-3 rounded-lg border border-muted/40 bg-muted/5 text-sm">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Loading plans...
+              </div>
+            ) : plans.length === 0 ? (
               <div className="flex items-center gap-2 p-3 rounded-lg border border-warning/40 bg-warning/5 text-sm text-warning-foreground">
                 <AlertTriangle className="w-4 h-4 shrink-0" />
-                No vaccines in stock for this branch.
+                No vaccination plans defined for this pet. Please create a plan first.
               </div>
             ) : (
-              <Select value={selectedVaccine} onValueChange={setSelectedVaccine}>
+              <Select value={selectedPlanId} onValueChange={setSelectedPlanId}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select vaccine" />
+                  <SelectValue placeholder="Select plan" />
                 </SelectTrigger>
                 <SelectContent>
-                  {vaccineOptions.map((v) => (
-                    <SelectItem key={v.id} value={v.id}>
+                  {plans.map((p) => (
+                    <SelectItem key={p.pet_vaccination_plan_id} value={String(p.pet_vaccination_plan_id)}>
                       <div className="flex items-center gap-2">
                         <Syringe className="w-4 h-4 text-muted-foreground" />
-                        <span>{v.name}</span>
-                        <span className="text-xs text-muted-foreground">
-                          ({v.currentStock} in stock)
-                        </span>
+                        <span>{p.vaccine_name || 'Vaccine'}</span>
+                        {p.vac_type && (
+                          <span className="text-xs text-muted-foreground">
+                            ({p.vac_type})
+                          </span>
+                        )}
+                        {p.repeat_every_months && (
+                          <span className="text-xs text-muted-foreground">
+                            • every {p.repeat_every_months}mo
+                          </span>
+                        )}
                       </div>
                     </SelectItem>
                   ))}
@@ -120,6 +156,24 @@ export function VaccinationModal({
               </Select>
             )}
           </div>
+
+          {/* Plan Details */}
+          {selectedPlan && (
+            <div className="flex items-start gap-2 p-3 rounded-lg border border-info/40 bg-info/5 text-sm">
+              <Info className="w-4 h-4 shrink-0 text-info mt-0.5" />
+              <div>
+                <div className="font-medium text-info-foreground">Plan Details:</div>
+                {selectedPlan.repeat_every_months && (
+                  <div className="text-info-foreground/80">
+                    Next due {selectedPlan.repeat_every_months} months after administration
+                  </div>
+                )}
+                {selectedPlan.notes && (
+                  <div className="text-info-foreground/80 text-xs mt-1">{selectedPlan.notes}</div>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Date administered */}
           <div className="space-y-2">
@@ -129,24 +183,8 @@ export function VaccinationModal({
               value={vacDate}
               max={today}
               onChange={(e) => setVacDate(e.target.value)}
+              disabled={loading || plans.length === 0}
             />
-          </div>
-
-          {/* Next due date */}
-          <div className="space-y-2">
-            <Label>
-              Next Due Date
-              <span className="ml-1 text-xs text-muted-foreground">(optional)</span>
-            </Label>
-            <Input
-              type="date"
-              value={nextDue}
-              min={today}
-              onChange={(e) => setNextDue(e.target.value)}
-            />
-            <p className="text-xs text-muted-foreground">
-              Leave blank to auto-calculate from vaccination protocol.
-            </p>
           </div>
         </div>
 
@@ -156,7 +194,7 @@ export function VaccinationModal({
           </Button>
           <Button
             onClick={handleSubmit}
-            disabled={!selectedVaccine || vaccineOptions.length === 0 || saving}
+            disabled={!selectedPlanId || plans.length === 0 || saving || loading}
           >
             {saving ? (
               <>

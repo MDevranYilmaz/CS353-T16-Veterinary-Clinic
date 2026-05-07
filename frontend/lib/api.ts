@@ -488,7 +488,7 @@ export const vaccinationApi = {
     const data = await get<any[]>(path)
     return (data || []).map(normalizeVaccination)
   },
-  record: (data: { vac_date: string; pet_id: number; barcode_no: string; next_due_date?: string }) =>
+  record: (data: { vac_date: string; pet_id: number; pet_vaccination_plan_id: number }) =>
     post<{ vac_id: number }>('/vaccinations', data),
   recommendations: (query: string) =>
     get<any[]>(`/vaccinations/recommendations?q=${encodeURIComponent(query)}`),
@@ -624,8 +624,11 @@ export const vaccinationPlanApi = {
     request<any>(`/vaccination-plans/items/${itemId}`, { method: 'DELETE' }),
 
   // Apply plans to pets
-  applyPlan: (petId: number | string, planId: number | string) =>
-    post<any>(`/vaccination-plans/pets/${petId}/apply`, { plan_id: planId }),
+  applyPlan: (petId: number | string, planId: number | string, details?: any) =>
+    post<any>(`/vaccination-plans/pets/${petId}/apply`, { 
+      plan_id: planId,
+      ...details
+    }),
   removePlan: (petId: number | string, planId: number | string) =>
     post<any>(`/vaccination-plans/pets/${petId}/remove`, { plan_id: planId }),
 

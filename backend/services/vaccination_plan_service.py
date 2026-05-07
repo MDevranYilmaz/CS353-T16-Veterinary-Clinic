@@ -5,28 +5,15 @@ logger = logging.getLogger(__name__)
 
 
 def get_applicable_plans(species: str, breed: str = None):
-    """Get vaccination plans applicable to a pet species and breed"""
+    """Get all vaccines available to assign to a pet"""
     with DBContext() as (conn, cur):
-        if breed:
-            cur.execute(
-                """
-                SELECT *
-                FROM VaccinationPlan
-                WHERE species = %s AND (breed = %s OR breed IS NULL)
-                ORDER BY breed DESC, plan_name
-                """,
-                (species, breed),
-            )
-        else:
-            cur.execute(
-                """
-                SELECT *
-                FROM VaccinationPlan
-                WHERE species = %s AND breed IS NULL
-                ORDER BY plan_name
-                """,
-                (species,),
-            )
+        # Return all vaccines as applicable options
+        cur.execute("""
+            SELECT v.barcode_no, m.med_name, v.vac_type, m.unit_cost
+            FROM Vaccine v
+            JOIN Medicine m ON m.barcode_no = v.barcode_no
+            ORDER BY m.med_name
+        """)
         return cur.fetchall()
 
 
@@ -59,51 +46,45 @@ def generate_vaccination_schedule(pet_id: int, plan_id: int):
 
 
 def get_pet_schedule(pet_id: int):
-    """Get the complete vaccination schedule for a pet based on its applied plan"""
+    """Get the complete vaccination schedule for a pet"""
     with DBContext() as (conn, cur):
-        # Get pet's applied plan
+        # Get the pet's vaccination schedule (custom plan)
         cur.execute(
             """
-            SELECT pv.plan_id, p.*
-            FROM PetVaccinationPlan pv
-            JOIN VaccinationPlan p ON p.plan_id = pv.plan_id
-            WHERE pv.pet_id = %s
-            LIMIT 1
+            SELECT pvp.pet_vaccination_plan_id, pvp.pet_id, pvp.vaccine_barcode, 
+                   pvp.age_weeks, pvp.sequence_number, pvp.repeat_every_months, 
+                   pvp.gender_applicable, pvp.notes,
+                   m.med_name as vaccine_name, v.vac_type, m.unit_cost
+            FROM PetVaccinationPlan pvp
+            JOIN Vaccine v ON v.barcode_no = pvp.vaccine_barcode
+            JOIN Medicine m ON m.barcode_no = v.barcode_no
+            WHERE pvp.pet_id = %s
+            ORDER BY pvp.age_weeks ASC, pvp.sequence_number ASC
             """,
             (pet_id,),
         )
-        plan_row = cur.fetchone()
-
-        if not plan_row:
-            return None
-
-        plan_id = plan_row["plan_id"]
-        
-        # Get the computed schedule from the view
-        cur.execute(
-            """
-            SELECT * FROM PetVaccinationSchedule
-            WHERE pet_id = %s AND plan_id = %s
-            ORDER BY age_weeks ASC, sequence_number ASC
-            """,
-            (pet_id, plan_id),
-        )
         schedule = cur.fetchall()
 
-        return {
-            "plan": plan_row,
-            "schedule": schedule,
-        }
+        return schedule
 
 
 def get_overdue_for_plan(pet_id: int):
-    """Get overdue vaccinations for a pet"""
+    """Get overdue vaccinations for a pet (based on schedule)"""
     with DBContext() as (conn, cur):
+        # Get all scheduled vaccines with next_due_date that has passed
         cur.execute(
             """
-            SELECT * FROM PetOverdueVaccinations
-            WHERE pet_id = %s
-            ORDER BY days_overdue DESC
+            SELECT v.*, m.med_name, p.name as pet_name, p.birth_date,
+                   DATEDIFF(CURDATE(), 
+                            DATE_ADD(p.birth_date, INTERVAL pvp.age_weeks WEEK)
+                   ) as days_overdue
+            FROM Vaccination v
+            JOIN Pet p ON p.pet_id = v.pet_id
+            JOIN Vaccine vc ON vc.barcode_no = v.barcode_no
+            JOIN Medicine m ON m.barcode_no = v.barcode_no
+            LEFT JOIN PetVaccinationPlan pvp ON pvp.pet_id = p.pet_id AND pvp.vaccine_barcode = v.barcode_no
+            WHERE v.pet_id = %s AND v.next_due_date IS NOT NULL AND v.next_due_date < CURDATE()
+            ORDER BY v.next_due_date ASC
             """,
             (pet_id,),
         )
@@ -113,11 +94,20 @@ def get_overdue_for_plan(pet_id: int):
 def get_upcoming_for_plan(pet_id: int, days_ahead: int = 30):
     """Get vaccinations due soon (within next N days)"""
     with DBContext() as (conn, cur):
+        # Get scheduled vaccines that are coming up
         cur.execute(
             """
-            SELECT * FROM PetUpcomingVaccinations
-            WHERE pet_id = %s AND days_until_due <= %s
-            ORDER BY days_until_due ASC
+            SELECT v.*, m.med_name, p.name as pet_name,
+                   DATEDIFF(v.next_due_date, CURDATE()) as days_until_due
+            FROM Vaccination v
+            JOIN Pet p ON p.pet_id = v.pet_id
+            JOIN Vaccine vc ON vc.barcode_no = v.barcode_no
+            JOIN Medicine m ON m.barcode_no = v.barcode_no
+            WHERE v.pet_id = %s 
+              AND v.next_due_date IS NOT NULL 
+              AND v.next_due_date >= CURDATE() 
+              AND v.next_due_date <= DATE_ADD(CURDATE(), INTERVAL %s DAY)
+            ORDER BY v.next_due_date ASC
             """,
             (pet_id, days_ahead),
         )
@@ -132,15 +122,15 @@ def get_compliance(pet_id: int):
             SELECT
                 p.pet_id,
                 p.name AS pet_name,
-                COUNT(pvs.vaccine_barcode) AS total_vaccines,
-                SUM(CASE WHEN pvs.vaccination_status = 'Administered' THEN 1 ELSE 0 END) AS administered,
-                SUM(CASE WHEN pvs.vaccination_status IN ('Overdue', 'Due Soon') THEN 1 ELSE 0 END) AS due,
+                COUNT(DISTINCT pvp.vaccine_barcode) AS total_vaccines,
+                COUNT(DISTINCT v.vac_id) AS administered,
                 ROUND(
-                    SUM(CASE WHEN pvs.vaccination_status = 'Administered' THEN 1 ELSE 0 END) * 100.0 / COUNT(pvs.vaccine_barcode),
+                    COUNT(DISTINCT v.vac_id) * 100.0 / NULLIF(COUNT(DISTINCT pvp.vaccine_barcode), 0),
                     1
                 ) AS compliance_percentage
             FROM Pet p
-            LEFT JOIN PetVaccinationSchedule pvs ON pvs.pet_id = p.pet_id
+            LEFT JOIN PetVaccinationPlan pvp ON pvp.pet_id = p.pet_id
+            LEFT JOIN Vaccination v ON v.pet_id = p.pet_id AND v.barcode_no = pvp.vaccine_barcode
             WHERE p.pet_id = %s
             GROUP BY p.pet_id, p.name
             """,
