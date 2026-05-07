@@ -24,7 +24,7 @@ services:
     environment:
       FLASK_ENV: development
       FLASK_APP: app.py
-      PORT: 5000
+      PORT: 8000
       DB_HOST: mysql
       DB_PORT: 3306
       DB_NAME: vetclinic
@@ -34,7 +34,7 @@ services:
       JWT_SECRET_KEY: jwt-dev-secret-key
       CORS_ORIGINS: "*"
     ports:
-      - "5000:5000"
+      - "8000:8000"
     depends_on:
       mysql:
         condition: service_healthy
@@ -48,7 +48,7 @@ services:
       dockerfile: Dockerfile
     container_name: vetclinic_frontend
     environment:
-      NEXT_PUBLIC_API_URL: http://localhost:5000
+      NEXT_PUBLIC_API_URL: http://localhost:8000
     ports:
       - "3000:3000"
     depends_on:
