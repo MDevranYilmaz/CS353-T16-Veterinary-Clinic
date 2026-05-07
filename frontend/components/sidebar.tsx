@@ -140,12 +140,12 @@ export function Sidebar({ currentRole, currentView, onViewChange, userName, user
           <Avatar className="w-10 h-10">
             <AvatarImage src={userAvatar} alt={userName} />
             <AvatarFallback className="bg-sidebar-accent text-sidebar-accent-foreground">
-              {userName.split(' ').map(n => n[0]).join('')}
+              {(userName || 'U').split(' ').map(n => n[0]).join('')}
             </AvatarFallback>
           </Avatar>
           {!collapsed && (
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium truncate">{userName}</p>
+              <p className="text-sm font-medium truncate">{userName || 'User'}</p>
               <p className="text-xs text-sidebar-foreground/70 truncate">{getRoleLabel(currentRole)}</p>
             </div>
           )}
