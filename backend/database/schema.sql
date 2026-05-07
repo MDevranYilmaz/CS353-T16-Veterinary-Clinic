@@ -182,12 +182,13 @@ CREATE TABLE BranchStock (
 -- StockEntry
 -- -------------------------
 CREATE TABLE IF NOT EXISTS StockEntry (
-	id SERIAL PRIMARY KEY,
-    medicine_id INT REFERENCES medicine(id) ON DELETE CASCADE,
+    id SERIAL PRIMARY KEY,
+    medicine_id VARCHAR(50),
     batch_number VARCHAR(50),
     quantity INT,
     expiry_date DATE,
-    date_added TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    date_added TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_stockentry_medicine FOREIGN KEY (medicine_id) REFERENCES Medicine(barcode_no) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- -------------------------
@@ -195,9 +196,10 @@ CREATE TABLE IF NOT EXISTS StockEntry (
 -- -------------------------
 CREATE TABLE IF NOT EXISTS LowStockAlert (
     id SERIAL PRIMARY KEY,
-    medicine_id INT REFERENCES medicine(id) ON DELETE CASCADE,
+    medicine_id VARCHAR(50),
     alert_message TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_lowstock_medicine FOREIGN KEY (medicine_id) REFERENCES Medicine(barcode_no) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- -------------------------

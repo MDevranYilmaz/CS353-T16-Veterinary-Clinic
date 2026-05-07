@@ -56,7 +56,7 @@ UNION ALL
 -- 2. LowStockAlert
 --    Medicines at or below min_threshold per branch
 -- -------------------------------------------------------
-CREATE OR REPLACE VIEW LowStockAlert AS
+CREATE OR REPLACE VIEW LowStockAlertView AS
     SELECT
         bs.branch_id,
         b.name          AS branch_name,
