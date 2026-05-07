@@ -219,13 +219,13 @@ INSERT INTO Medical_History (pet_id, date_time, diagnosis, symptoms, treatments,
 -- -------------------------
 -- BoardingUnits
 -- -------------------------
-INSERT INTO BoardingUnit (boarding_unit_id, size, is_occupied, branch_id, pet_id) VALUES
-(1, 'Small',  TRUE,  1, 2),
-(2, 'Medium', TRUE,  1, 1),
-(3, 'Large',  FALSE, 1, NULL),
-(4, 'Small',  FALSE, 2, NULL),
-(5, 'Medium', TRUE,  2, 5),
-(6, 'Large',  FALSE, 3, NULL);
+INSERT INTO BoardingUnit (boarding_unit_id, size, is_occupied, branch_id, pet_id, check_in_date, check_out_date, feeding_instructions) VALUES
+(1, 'Small',  TRUE,  1, 2,    '2026-05-05', '2026-05-10', '2x daily, dry food only'),
+(2, 'Medium', TRUE,  1, 1,    '2026-05-06', '2026-05-12', NULL),
+(3, 'Large',  FALSE, 1, NULL, NULL,          NULL,          NULL),
+(4, 'Small',  FALSE, 2, NULL, NULL,          NULL,          NULL),
+(5, 'Medium', TRUE,  2, 5,    '2026-05-04', '2026-05-09', 'No treats, allergic to chicken'),
+(6, 'Large',  FALSE, 3, NULL, NULL,          NULL,          NULL);
 
 -- -------------------------
 -- WasteLog (2 entries)

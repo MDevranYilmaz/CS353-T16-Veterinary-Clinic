@@ -4,6 +4,7 @@
 SET FOREIGN_KEY_CHECKS = 0;
 
 DROP TABLE IF EXISTS WasteLog;
+DROP TABLE IF EXISTS BoardingHistory;
 DROP TABLE IF EXISTS BoardingUnit;
 DROP TABLE IF EXISTS Medical_History;
 DROP TABLE IF EXISTS Evaluation;
@@ -291,13 +292,33 @@ CREATE TABLE Medical_History (
 -- BoardingUnit
 -- -------------------------
 CREATE TABLE BoardingUnit (
-    boarding_unit_id INT AUTO_INCREMENT PRIMARY KEY,
-    size             ENUM('Small','Medium','Large') NOT NULL,
-    is_occupied      BOOLEAN NOT NULL DEFAULT FALSE,
-    branch_id        INT     NOT NULL,
-    pet_id           INT     NULL,
+    boarding_unit_id     INT AUTO_INCREMENT PRIMARY KEY,
+    size                 ENUM('Small','Medium','Large') NOT NULL,
+    is_occupied          BOOLEAN NOT NULL DEFAULT FALSE,
+    branch_id            INT     NOT NULL,
+    pet_id               INT     NULL,
+    check_in_date        DATE    NULL,
+    check_out_date       DATE    NULL,
+    feeding_instructions TEXT    NULL,
     CONSTRAINT fk_boarding_branch FOREIGN KEY (branch_id) REFERENCES Branch(branch_id) ON DELETE CASCADE,
     CONSTRAINT fk_boarding_pet    FOREIGN KEY (pet_id)    REFERENCES Pet(pet_id)        ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- -------------------------
+-- BoardingHistory
+-- -------------------------
+CREATE TABLE BoardingHistory (
+    history_id           INT AUTO_INCREMENT PRIMARY KEY,
+    boarding_unit_id     INT  NOT NULL,
+    pet_id               INT  NOT NULL,
+    branch_id            INT  NOT NULL,
+    size                 ENUM('Small','Medium','Large') NOT NULL,
+    check_in_date        DATE NULL,
+    check_out_date       DATE NULL,
+    feeding_instructions TEXT NULL,
+    checked_out_at       DATETIME DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_bh_pet    FOREIGN KEY (pet_id)    REFERENCES Pet(pet_id)    ON DELETE CASCADE,
+    CONSTRAINT fk_bh_branch FOREIGN KEY (branch_id) REFERENCES Branch(branch_id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- -------------------------

@@ -51,13 +51,13 @@ export function BoardingBookModal({ open, onOpenChange, pets, onSuccess }: Board
   }, [open])
 
   useEffect(() => {
-    if (!selectedBranch) { setUnits([]); setSelectedUnit(''); return }
+    if (!selectedBranch || !checkIn || !checkOut) { setUnits([]); setSelectedUnit(''); return }
     setLoadingUnits(true)
-    boardingApi.list(selectedBranch, true)
-      .then(setUnits)
+    boardingApi.list(selectedBranch, true, checkIn, checkOut)
+      .then((us) => { setUnits(us); setSelectedUnit('') })
       .catch(console.error)
       .finally(() => setLoadingUnits(false))
-  }, [selectedBranch])
+  }, [selectedBranch, checkIn, checkOut])
 
   const handleSubmit = async () => {
     if (!selectedPet || !selectedUnit || !checkIn || !checkOut) return
@@ -124,8 +124,20 @@ export function BoardingBookModal({ open, onOpenChange, pets, onSuccess }: Board
             </Select>
           </div>
 
-          {/* Available units */}
-          {selectedBranch && (
+          {/* Dates — pick first so we can show correct available units */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label>Check-in Date</Label>
+              <Input type="date" min={today} value={checkIn} onChange={(e) => setCheckIn(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label>Check-out Date</Label>
+              <Input type="date" min={checkIn || today} value={checkOut} onChange={(e) => setCheckOut(e.target.value)} />
+            </div>
+          </div>
+
+          {/* Available units — loads once branch + both dates are selected */}
+          {selectedBranch && checkIn && checkOut && (
             <div className="space-y-2">
               <Label>Available Units</Label>
               {loadingUnits ? (
@@ -133,7 +145,7 @@ export function BoardingBookModal({ open, onOpenChange, pets, onSuccess }: Board
                   <Loader2 className="w-4 h-4 animate-spin" /> Loading units...
                 </div>
               ) : units.length === 0 ? (
-                <p className="text-sm text-muted-foreground py-2">No available units at this branch</p>
+                <p className="text-sm text-muted-foreground py-2">No available units at this branch for those dates</p>
               ) : (
                 <div className="grid grid-cols-3 gap-2">
                   {units.map((u) => (
@@ -158,18 +170,6 @@ export function BoardingBookModal({ open, onOpenChange, pets, onSuccess }: Board
               )}
             </div>
           )}
-
-          {/* Dates */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-2">
-              <Label>Check-in Date</Label>
-              <Input type="date" min={today} value={checkIn} onChange={(e) => setCheckIn(e.target.value)} />
-            </div>
-            <div className="space-y-2">
-              <Label>Check-out Date</Label>
-              <Input type="date" min={checkIn || today} value={checkOut} onChange={(e) => setCheckOut(e.target.value)} />
-            </div>
-          </div>
 
           {/* Feeding instructions */}
           <div className="space-y-2">
