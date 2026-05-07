@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { appointmentApi, branchApi, vetApi } from '@/lib/api'
+import { appointmentApi, branchApi, vetApi, referralApi } from '@/lib/api'
 import type { Branch, Veterinarian } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
@@ -52,6 +52,8 @@ export function ReferralModal({ open, onOpenChange, currentVetId, onSubmit }: Re
   const [vets, setVets] = useState<Veterinarian[]>([])
   const [petOptions, setPetOptions] = useState<ReferralPetOption[]>([])
   const [loading, setLoading] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState('')
 
   useEffect(() => {
     if (!open) return
@@ -104,18 +106,27 @@ export function ReferralModal({ open, onOpenChange, currentVetId, onSubmit }: Re
     [vets, selectedBranch, currentVetId]
   )
 
-  const handleSubmit = () => {
-    if (selectedPet && selectedVet && reason.trim()) {
-      onSubmit({
-        toVetId: selectedVet,
-        petId: selectedPet,
+  const handleSubmit = async () => {
+    if (!selectedPet || !selectedVet || !reason.trim()) return
+    setSubmitting(true)
+    setSubmitError('')
+    try {
+      await referralApi.create({
         reason: reason.trim(),
+        referral_date: new Date().toISOString().slice(0, 10),
+        receiver_vet_id: Number(selectedVet),
+        pet_id: Number(selectedPet),
       })
+      onSubmit({ toVetId: selectedVet, petId: selectedPet, reason: reason.trim() })
       setSelectedPet('')
       setSelectedBranch('all')
       setSelectedVet('')
       setReason('')
       onOpenChange(false)
+    } catch (e: any) {
+      setSubmitError(e.message || 'Failed to create referral')
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -255,12 +266,15 @@ export function ReferralModal({ open, onOpenChange, currentVetId, onSubmit }: Re
           </div>
         )}
 
+        {submitError && (
+          <p className="text-sm text-destructive px-1">{submitError}</p>
+        )}
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading || submitting}>
             Cancel
           </Button>
-          <Button onClick={handleSubmit} disabled={loading || !selectedPet || !selectedVet || !reason.trim()}>
-            Create Referral
+          <Button onClick={handleSubmit} disabled={loading || submitting || !selectedPet || !selectedVet || !reason.trim()}>
+            {submitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Creating...</> : 'Create Referral'}
           </Button>
         </DialogFooter>
       </DialogContent>
