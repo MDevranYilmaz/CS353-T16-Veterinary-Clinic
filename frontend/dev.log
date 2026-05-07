@@ -1,0 +1,17 @@
+
+> my-project@0.1.0 dev
+> next dev
+
+▲ Next.js 16.1.6 (Turbopack)
+- Local:         http://localhost:3000
+- Network:       http://192.168.1.180:3000
+
+✓ Starting...
+Error: An IO error occurred while attempting to create and acquire the lockfile
+    at ignore-listed frames {
+  [cause]: Error: Permission denied (os error 13)
+      at ignore-listed frames {
+    code: 'GenericFailure'
+  }
+}
+[?25h
