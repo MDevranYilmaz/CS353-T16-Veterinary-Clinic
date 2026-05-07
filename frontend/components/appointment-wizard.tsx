@@ -44,11 +44,6 @@ const appointmentTypes = [
   { id: 'followup', label: 'Follow-up', description: 'Post-treatment checkup' },
 ]
 
-const fallbackSlots = [
-  '09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
-  '14:00', '14:30', '15:00', '15:30', '16:00', '16:30',
-]
-
 export function AppointmentWizard({ onComplete, onCancel }: AppointmentWizardProps) {
   const { user } = useAuth()
   const [step, setStep] = useState(1)
@@ -64,10 +59,11 @@ export function AppointmentWizard({ onComplete, onCancel }: AppointmentWizardPro
   const [ownerPets, setOwnerPets] = useState<Pet[]>([])
   const [branches, setBranches] = useState<Branch[]>([])
   const [vets, setVets] = useState<Veterinarian[]>([])
-  const [availableSlots, setAvailableSlots] = useState<string[]>(fallbackSlots)
+  const [availableSlots, setAvailableSlots] = useState<string[]>([])
   const [loadingPets, setLoadingPets] = useState(false)
   const [loadingVets, setLoadingVets] = useState(false)
   const [loadingSlots, setLoadingSlots] = useState(false)
+  const [now, setNow] = useState(() => new Date())
 
   useEffect(() => {
     if (!user) return
@@ -99,16 +95,21 @@ export function AppointmentWizard({ onComplete, onCancel }: AppointmentWizardPro
     setSelectedTime('')
     vetApi.availableSlots(selectedVet, dateStr)
       .then((slots) => {
-        let final = slots.length > 0 ? slots : fallbackSlots
+        let final = slots
         // if user selected today, filter out past slots immediately
         if (isSameDay(selectedDate, new Date())) {
           final = final.filter((t) => !isSlotInPast(t))
         }
         setAvailableSlots(final)
       })
-      .catch(() => setAvailableSlots(fallbackSlots))
+      .catch(() => setAvailableSlots([]))
       .finally(() => setLoadingSlots(false))
   }, [selectedVet, selectedDate])
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(new Date()), 30000)
+    return () => window.clearInterval(timer)
+  }, [])
 
   const canProceed = () => {
     switch (step) {
@@ -127,13 +128,17 @@ export function AppointmentWizard({ onComplete, onCancel }: AppointmentWizardPro
 
   const isSlotInPast = (time: string) => {
     if (!selectedDate) return false
-    const now = new Date()
     // Only consider past for today
     if (!isSameDay(selectedDate, now)) return false
     const [hh, mm] = time.split(':').map((s) => Number(s))
     const slotDate = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate(), hh, mm, 0)
     return slotDate.getTime() <= now.getTime()
   }
+
+  useEffect(() => {
+    if (!selectedTime || !isSlotInPast(selectedTime)) return
+    setSelectedTime('')
+  }, [now, selectedDate, selectedTime])
 
   const handleNext = async () => {
     if (step < 4 && canProceed()) {
@@ -168,6 +173,7 @@ export function AppointmentWizard({ onComplete, onCancel }: AppointmentWizardPro
   const selectedVetData = vets.find((v) => v.id === selectedVet)
   const selectedBranchData = branches.find((b) => b.id === selectedBranch)
   const selectedTypeData = appointmentTypes.find((t) => t.id === selectedType)
+  const visibleSlots = availableSlots.filter((time) => !isSlotInPast(time))
 
   return (
     <div className="space-y-6">
@@ -374,28 +380,34 @@ export function AppointmentWizard({ onComplete, onCancel }: AppointmentWizardPro
                     <Loader2 className="w-6 h-6 animate-spin text-primary" />
                   </div>
                 ) : (
-                  <div className="grid grid-cols-3 gap-2">
-                    {availableSlots.map((time) => {
-                      const disabled = isSlotInPast(time)
-                      return (
-                        <button
-                          key={time}
-                          onClick={() => !disabled && setSelectedTime(time)}
-                          disabled={disabled}
-                          className={cn(
-                            'flex items-center justify-center gap-2 p-3 rounded-lg border transition-colors',
-                            disabled ? 'opacity-50 cursor-not-allowed' : '',
-                            selectedTime === time
-                              ? 'border-primary bg-primary text-primary-foreground'
-                              : 'hover:bg-muted/50'
-                          )}
-                        >
-                          <Clock className="w-4 h-4" />
-                          {time}
-                        </button>
-                      )
-                    })}
-                  </div>
+                  visibleSlots.length === 0 ? (
+                    <p className="text-sm text-muted-foreground py-2">
+                      No available time slots for the selected date.
+                    </p>
+                  ) : (
+                    <div className="grid grid-cols-3 gap-2">
+                      {visibleSlots.map((time) => {
+                        const disabled = isSlotInPast(time)
+                        return (
+                          <button
+                            key={time}
+                            onClick={() => !disabled && setSelectedTime(time)}
+                            disabled={disabled}
+                            className={cn(
+                              'flex items-center justify-center gap-2 p-3 rounded-lg border transition-colors',
+                              disabled ? 'opacity-50 cursor-not-allowed' : '',
+                              selectedTime === time
+                                ? 'border-primary bg-primary text-primary-foreground'
+                                : 'hover:bg-muted/50'
+                            )}
+                          >
+                            <Clock className="w-4 h-4" />
+                            {time}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )
                 )}
 
                 <div className="space-y-2 mt-4">
