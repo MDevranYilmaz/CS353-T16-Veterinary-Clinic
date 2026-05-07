@@ -171,7 +171,7 @@ export default function VetClinicApp() {
     return <LoginScreen />
   }
 
-  const initials = user.fullName.split(' ').map((n) => n[0]).join('').slice(0, 2)
+  const initials = (user.fullName || user.name || 'U').split(' ').map((n) => n[0]).join('').slice(0, 2)
 
   const renderContent = () => {
     // Appointment booking wizard
@@ -560,7 +560,7 @@ export default function VetClinicApp() {
         currentRole={user.role}
         currentView={currentView}
         onViewChange={handleViewChange}
-        userName={user.fullName}
+        userName={user.fullName || user.name || 'User'}
         onLogout={handleLogout}
       />
 

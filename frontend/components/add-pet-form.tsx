@@ -27,6 +27,7 @@ interface AddPetFormProps {
 export function AddPetForm({ onSuccess, onCancel }: AddPetFormProps) {
   const { user } = useAuth()
   const [species, setSpecies] = useState('')
+  const [gender, setGender] = useState('')
   const [name, setName] = useState('')
   const [breed, setBreed] = useState('')
   const [birthDate, setBirthDate] = useState('')
@@ -36,13 +37,15 @@ export function AddPetForm({ onSuccess, onCancel }: AddPetFormProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!user || !name.trim()) return
+    if (!user || !name.trim() || !gender) return
     setSaving(true)
     setError('')
     try {
       await petApi.create({
         name: name.trim(),
         owner_id: Number(user.userId),
+        species: species || undefined,
+        gender: gender,
         breed: breed.trim() || undefined,
         birth_date: birthDate || undefined,
         allergies: allergies.trim() || undefined,
@@ -89,6 +92,39 @@ export function AddPetForm({ onSuccess, onCancel }: AddPetFormProps) {
                     {label}
                   </button>
                 ))}
+              </div>
+            </div>
+
+            {/* Gender */}
+            <div className="space-y-2">
+              <Label>
+                Gender <span className="text-destructive">*</span>
+              </Label>
+              <div className="flex gap-4">
+                <button
+                  type="button"
+                  onClick={() => setGender('M')}
+                  className={cn(
+                    'flex-1 p-2 rounded-lg border font-medium transition-colors',
+                    gender === 'M'
+                      ? 'border-primary bg-primary/5 text-primary'
+                      : 'hover:bg-muted/50'
+                  )}
+                >
+                  Male
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setGender('F')}
+                  className={cn(
+                    'flex-1 p-2 rounded-lg border font-medium transition-colors',
+                    gender === 'F'
+                      ? 'border-primary bg-primary/5 text-primary'
+                      : 'hover:bg-muted/50'
+                  )}
+                >
+                  Female
+                </button>
               </div>
             </div>
 
@@ -157,7 +193,7 @@ export function AddPetForm({ onSuccess, onCancel }: AddPetFormProps) {
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={!name.trim() || saving} className="flex-1">
+              <Button type="submit" disabled={!name.trim() || !gender || saving} className="flex-1">
                 {saving ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />

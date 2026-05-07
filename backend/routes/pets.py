@@ -34,14 +34,14 @@ def list_pets():
 @require_auth
 def create_pet():
     data = request.get_json(silent=True) or {}
-    missing = require_fields(data, ["name", "owner_id"])
+    missing = require_fields(data, ["name", "owner_id", "gender"])
     if missing:
         return error(f"Missing fields: {', '.join(missing)}", 400)
 
     if data.get("birth_date") and not valid_date(data["birth_date"]):
         return error("birth_date must be YYYY-MM-DD", 400)
 
-    if data.get("gender") and data["gender"] not in ["M", "F"]:
+    if data["gender"] not in ["M", "F"]:
         return error("gender must be 'M' or 'F'", 400)
 
     try:
