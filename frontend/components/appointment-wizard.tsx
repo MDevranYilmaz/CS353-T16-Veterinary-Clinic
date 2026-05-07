@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/lib/auth-context'
-import { petApi, branchApi, vetApi, appointmentApi } from '@/lib/api'
+import { petApi, branchApi, vetApi, appointmentApi, billingApi } from '@/lib/api'
 import type { Pet, Branch, Veterinarian } from '@/lib/types'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -28,7 +28,9 @@ import {
   MapPin,
   Star,
   Loader2,
+  AlertCircle,
 } from 'lucide-react'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { cn } from '@/lib/utils'
 
 interface AppointmentWizardProps {
@@ -64,6 +66,7 @@ export function AppointmentWizard({ onComplete, onCancel }: AppointmentWizardPro
   const [loadingVets, setLoadingVets] = useState(false)
   const [loadingSlots, setLoadingSlots] = useState(false)
   const [now, setNow] = useState(() => new Date())
+  const [outstandingBills, setOutstandingBills] = useState<{ bill_id: number; generated_date: string; total_amount: number }[]>([])
 
   useEffect(() => {
     if (!user) return
@@ -76,6 +79,13 @@ export function AppointmentWizard({ onComplete, onCancel }: AppointmentWizardPro
       setBranches(branchList)
     }).catch(console.error).finally(() => setLoadingPets(false))
   }, [user])
+
+  useEffect(() => {
+    if (!selectedPet) { setOutstandingBills([]); return }
+    billingApi.outstandingForPet(selectedPet)
+      .then(setOutstandingBills)
+      .catch(() => setOutstandingBills([]))
+  }, [selectedPet])
 
   useEffect(() => {
     if (!selectedBranch) return
@@ -113,7 +123,7 @@ export function AppointmentWizard({ onComplete, onCancel }: AppointmentWizardPro
 
   const canProceed = () => {
     switch (step) {
-      case 1: return selectedPet && selectedType
+      case 1: return selectedPet && selectedType && outstandingBills.length === 0
       case 2: return selectedBranch && selectedVet
       case 3: return selectedDate && selectedTime && !isSlotInPast(selectedTime)
       case 4: return true
@@ -256,6 +266,22 @@ export function AppointmentWizard({ onComplete, onCancel }: AppointmentWizardPro
                   </div>
                 )}
               </div>
+
+              {outstandingBills.length > 0 && (
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertTitle>Outstanding Unpaid Bills</AlertTitle>
+                  <AlertDescription>
+                    <p className="mb-1">
+                      {selectedPetData?.name ?? 'This pet'} has {outstandingBills.length} unpaid bill{outstandingBills.length > 1 ? 's' : ''} totalling{' '}
+                      <strong>
+                        ${outstandingBills.reduce((sum, b) => sum + b.total_amount, 0).toFixed(2)}
+                      </strong>.
+                    </p>
+                    <p>Please settle all outstanding bills before booking a new appointment.</p>
+                  </AlertDescription>
+                </Alert>
+              )}
 
               <div className="space-y-3">
                 <Label>Appointment Type</Label>

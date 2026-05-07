@@ -76,6 +76,17 @@ def get_available_slots(vet_id: int, local_date_str: str) -> list:
     return [f"{h:02d}:00" for h in SLOT_HOURS if h not in booked_hours]
 
 
+def check_outstanding_bills(pet_id: int) -> bool:
+    """Return True if the pet has no outstanding (unpaid) bills."""
+    with DBContext() as (conn, cur):
+        cur.execute(
+            "SELECT COUNT(*) AS cnt FROM OutstandingBills WHERE pet_id = %s",
+            (pet_id,),
+        )
+        row = cur.fetchone()
+        return row["cnt"] == 0
+
+
 def book_appointment(date_time: str, pet_id: int, vet_id: int, appt_type: str = 'checkup', notes: str | None = None) -> dict:
     """Validate limits/conflicts and create appointment. Expects `date_time` in local Istanbul 'YYYY-MM-DD HH:MM:SS'.
     Stores datetimes in UTC in DB.
@@ -87,6 +98,8 @@ def book_appointment(date_time: str, pet_id: int, vet_id: int, appt_type: str = 
         raise ValueError("Veterinarian has reached the daily appointment limit (15).")
     if not check_vet_available(vet_id, date_time):
         raise ValueError("The selected time slot is already booked.")
+    if not check_outstanding_bills(pet_id):
+        raise ValueError("This pet has outstanding unpaid bills. Please settle them before booking a new appointment.")
 
     utc_dt = _local_to_utc_str(date_time)
     with DBContext() as (conn, cur):

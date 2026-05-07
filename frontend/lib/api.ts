@@ -419,6 +419,8 @@ export const billingApi = {
   },
   pay: (billId: number | string) =>
     put<any>(`/billing/${billId}/pay`, {}),
+  outstandingForPet: (petId: number | string): Promise<{ bill_id: number; generated_date: string; total_amount: number }[]> =>
+    get<any>(`/billing/outstanding/pet/${petId}`),
 }
 
 // ─── Inventory ───────────────────────────────────────────────────────────────
