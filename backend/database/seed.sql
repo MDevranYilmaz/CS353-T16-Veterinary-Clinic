@@ -143,7 +143,13 @@ INSERT INTO Appointment (appointment_id, date_time, status, pet_id, vet_id) VALU
 (7,  '2026-04-22 11:00:00', 'Scheduled',  6, 5),
 (8,  '2026-04-25 15:00:00', 'Scheduled',  8, 4),
 (9,  '2026-03-20 09:00:00', 'Completed',  1, 1),
-(10, '2026-03-25 10:00:00', 'Cancelled',  3, 3);
+(10, '2026-03-25 10:00:00', 'Cancelled',  3, 3),
+(11, '2026-05-07 09:00:00', 'Completed',  1, 1),
+(12, '2026-05-07 10:30:00', 'Completed',  2, 2),
+(13, '2026-05-07 13:00:00', 'Scheduled',  3, 3),
+(14, '2026-05-07 15:00:00', 'Scheduled',  4, 1),
+(15, '2026-05-07 16:30:00', 'Scheduled',  5, 2);
+
 
 -- -------------------------
 -- Bills (3 – for completed appointments)
@@ -177,19 +183,65 @@ INSERT INTO PresMed (prescription_id, medicine_id, dosage, frequency) VALUES
 (5, 'MED-003', 1, 1);
 
 -- -------------------------
--- Vaccinations (10, some overdue)
+-- PetVaccinationPlan (per-pet custom vaccination schedules)
 -- -------------------------
-INSERT INTO Vaccination (vac_id, vac_date, next_due_date, pet_id, vet_id, barcode_no) VALUES
-(1,  '2025-03-01', '2026-03-01', 1, 1, 'VAC-001'),   -- overdue
-(2,  '2025-04-15', '2026-04-15', 1, 1, 'VAC-002'),   -- overdue
-(3,  '2025-06-10', '2026-06-10', 3, 2, 'VAC-001'),   -- upcoming
-(4,  '2025-09-20', '2026-09-20', 5, 3, 'VAC-003'),   -- upcoming
-(5,  '2026-03-01', '2027-03-01', 2, 1, 'VAC-002'),   -- up to date
-(6,  '2025-02-14', '2026-02-14', 7, 2, 'VAC-001'),   -- overdue
-(7,  '2026-02-01', '2026-05-15', 4, 1, 'VAC-003'),   -- due soon
-(8,  '2025-12-01', '2026-12-01', 6, 5, 'VAC-002'),   -- upcoming
-(9,  '2025-11-10', '2026-11-10', 8, 4, 'VAC-001'),   -- upcoming
-(10, '2026-01-20', '2027-01-20', 7, 2, 'VAC-002');   -- up to date
+INSERT INTO PetVaccinationPlan (pet_id, vaccine_barcode, age_weeks, sequence_number, repeat_every_months, gender_applicable, notes, created_by, created_date) VALUES
+-- Pet 1 (Buddy - Golden Retriever, born 2019-03-15, age ~7 years)
+(1, 'VAC-001', 16,  1, 12, NULL, 'Annual rabies booster required by law',          1, '2025-03-01'),
+(1, 'VAC-002', 8,   1, 12, NULL, 'Puppy series started at 6-8 weeks',              1, '2025-03-01'),
+(1, 'VAC-002', 12,  2, 12, NULL, 'Second dose of DHPP',                            1, '2025-03-01'),
+(1, 'VAC-002', 16,  3, 12, NULL, 'Final puppy booster of DHPP',                    1, '2025-03-01'),
+-- Pet 2 (Whiskers - Siamese Cat, born 2020-07-22, age ~6 years)
+(2, 'VAC-001', 12,  1, 12, NULL, 'Rabies vaccine for indoor cat',                   1, '2026-03-01'),
+(2, 'VAC-002', 8,   1, 12, NULL, 'Feline distemper vaccine',                        1, '2026-03-01'),
+(2, 'VAC-002', 12,  2, 12, NULL, 'Booster for feline distemper',                    1, '2026-03-01'),
+-- Pet 3 (Max - German Shepherd, born 2018-11-05, age ~7 years)
+(3, 'VAC-001', 16,  1, 12, NULL, 'Rabies vaccination',                              2, '2025-06-10'),
+(3, 'VAC-002', 8,   1, 12, NULL, 'DHPP - first shot',                               2, '2025-06-10'),
+(3, 'VAC-002', 12,  2, 12, NULL, 'DHPP - second shot',                              2, '2025-06-10'),
+(3, 'VAC-003', 16,  1, 12, NULL, 'Kennel cough vaccine - first dose',               2, '2025-06-10'),
+(3, 'VAC-003', 20,  2, 12, NULL, 'Kennel cough vaccine - booster',                  2, '2025-06-10'),
+-- Pet 4 (Bella - Labrador, born 2021-01-30, age ~5 years, relatively young)
+(4, 'VAC-001', 16,  1, 12, NULL, 'Rabies - primary series',                         1, '2026-02-01'),
+(4, 'VAC-002', 6,   1, 12, NULL, 'DHPP - first puppy shot',                         1, '2026-02-01'),
+(4, 'VAC-002', 10,  2, 12, NULL, 'DHPP - second puppy shot',                        1, '2026-02-01'),
+(4, 'VAC-002', 14,  3, 12, NULL, 'DHPP - third puppy shot',                         1, '2026-02-01'),
+(4, 'VAC-003', 12,  1, 12, NULL, 'Bordetella - kennel cough vaccine',               1, '2026-02-01'),
+-- Pet 5 (Charlie - Bulldog, born 2020-05-18, age ~6 years)
+(5, 'VAC-001', 16,  1, 12, NULL, 'Rabies vaccine required',                         3, '2025-09-20'),
+(5, 'VAC-002', 8,   1, 12, NULL, 'Bulldog - DHPP primary',                          3, '2025-09-20'),
+(5, 'VAC-002', 12,  2, 12, NULL, 'Bulldog - DHPP booster',                          3, '2025-09-20'),
+-- Pet 6 (Luna - Persian Cat, born 2022-08-12, age ~3 years, younger cat)
+(6, 'VAC-001', 12,  1, 12, 'F', 'Rabies vaccine - female cats',                    5, '2025-12-01'),
+(6, 'VAC-002', 8,   1, 12, 'F', 'Feline distemper - females',                       5, '2025-12-01'),
+(6, 'VAC-002', 12,  2, 12, 'F', 'Feline distemper booster - females',               5, '2025-12-01'),
+-- Pet 7 (Rocky - Beagle, born 2019-09-25, age ~6 years)
+(7, 'VAC-001', 16,  1, 12, NULL, 'Rabies - annual requirement',                     2, '2025-02-14'),
+(7, 'VAC-002', 8,   1, 12, NULL, 'DHPP - beagle puppy series',                      2, '2025-02-14'),
+(7, 'VAC-002', 12,  2, 12, NULL, 'DHPP - second booster',                           2, '2025-02-14'),
+(7, 'VAC-003', 14,  1, 12, NULL, 'Bordetella - kennel cough',                       2, '2025-02-14'),
+-- Pet 8 (Daisy - Poodle, born 2021-04-10, age ~5 years)
+(8, 'VAC-001', 16,  1, 12, NULL, 'Rabies vaccination for poodle',                   4, '2025-11-10'),
+(8, 'VAC-002', 8,   1, 12, NULL, 'DHPP - first dose',                               4, '2025-11-10'),
+(8, 'VAC-002', 12,  2, 12, NULL, 'DHPP - second dose',                              4, '2025-11-10'),
+(8, 'VAC-002', 16,  3, 12, NULL, 'DHPP - final booster',                            4, '2025-11-10'),
+(8, 'VAC-003', 18,  1, 12, NULL, 'Bordetella vaccine - grooming precaution',        4, '2025-11-10');
+
+-- -------------------------
+-- Vaccinations (10, some overdue, some administered)
+-- Note: next_due_date is ignored on INSERT and will be auto-calculated by backend
+-- -------------------------
+INSERT INTO Vaccination (vac_id, vac_date, next_due_date, pet_id, vet_id, barcode_no, pet_vaccination_plan_id) VALUES
+(1,  '2025-03-01', '2026-03-01', 1, 1, 'VAC-001', 1),   -- Pet 1, Rabies (plan 1) - overdue
+(2,  '2025-04-15', '2026-04-15', 1, 1, 'VAC-002', 2),   -- Pet 1, DHPP (plan 2, 8w) - overdue
+(3,  '2025-06-10', '2026-06-10', 3, 2, 'VAC-001', 8),   -- Pet 3, Rabies (plan 8) - upcoming
+(4,  '2025-09-20', '2026-09-20', 3, 2, 'VAC-003', 11),  -- Pet 3, Kennel cough (plan 11, 16w) - upcoming
+(5,  '2026-03-01', '2027-03-01', 2, 1, 'VAC-002', 6),   -- Pet 2, DHPP (plan 6, 8w) - up to date
+(6,  '2025-02-14', '2026-02-14', 7, 2, 'VAC-001', 24),  -- Pet 7, Rabies (plan 24) - overdue
+(7,  '2026-02-01', '2026-05-01', 4, 1, 'VAC-003', 17),  -- Pet 4, Bordetella (plan 17, 12w) - due soon
+(8,  '2025-12-01', '2026-12-01', 6, 5, 'VAC-002', 22),  -- Pet 6, DHPP (plan 22, 8w F) - upcoming
+(9,  '2025-11-10', '2026-11-10', 8, 4, 'VAC-001', 28),  -- Pet 8, Rabies (plan 28) - upcoming
+(10, '2026-01-20', '2027-01-20', 7, 2, 'VAC-002', 25);  -- Pet 7, DHPP (plan 25, 8w) - up to date
 
 -- -------------------------
 -- Referrals (2)

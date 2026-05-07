@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import type { Pet, MedicalRecord } from '@/lib/types'
-import { medicalRecordApi, petApi, prescriptionApi } from '@/lib/api'
-import { appointmentApi, referralApi } from '@/lib/api'
+import { medicalRecordApi, petApi, prescriptionApi, inventoryApi } from '@/lib/api'
+import { appointmentApi, referralApi, vaccinationPlanApi } from '@/lib/api'
 import { useAuth } from '@/lib/auth-context'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -44,6 +44,9 @@ import {
   Loader2,
   ArrowLeft,
 } from 'lucide-react'
+import { VaccinationModal } from '@/components/vaccination-modal'
+import { PrescriptionModal } from '@/components/prescription-modal'
+import { AddVaccinationScheduleModal } from '@/components/apply-vaccination-plan-modal'
 
 interface MedicalRecordsProps {
   pets: Pet[]
@@ -65,7 +68,16 @@ export function MedicalRecords({ pets, records, userRole, initialPetId, onRecord
   const [selectedPetId, setSelectedPetId] = useState<string>(initialPetId ?? pets[0]?.id ?? '')
   const [prescriptions, setPrescriptions] = useState<any[]>([])
   const [vaccinations, setVaccinations] = useState<any[]>([])
+  const [vaccinationSchedule, setVaccinationSchedule] = useState<any[]>([])
   const [appointmentsList, setAppointmentsList] = useState<any[]>([])
+  const [medicines, setMedicines] = useState<any[]>([])
+  const [activeTab, setActiveTab] = useState('records')
+
+  // Modal states
+  const [addRecordOpen, setAddRecordOpen] = useState(false)
+  const [vaccinationModalOpen, setVaccinationModalOpen] = useState(false)
+  const [prescriptionModalOpen, setPrescriptionModalOpen] = useState(false)
+  const [applyVaccinationPlanOpen, setApplyVaccinationPlanOpen] = useState(false)
 
   const formatDateTime = (value?: string) => {
     if (!value) return '—'
@@ -86,7 +98,6 @@ export function MedicalRecords({ pets, records, userRole, initialPetId, onRecord
     else if (!selectedPetId && pets[0]?.id) setSelectedPetId(pets[0].id)
   }, [initialPetId, pets])
   const [searchTerm, setSearchTerm] = useState('')
-  const [addOpen, setAddOpen] = useState(false)
   const [form, setForm] = useState<AddRecordForm>({ diagnosis: '', treatments: '', notes: '' })
   const [saving, setSaving] = useState(false)
 
@@ -95,7 +106,7 @@ export function MedicalRecords({ pets, records, userRole, initialPetId, onRecord
 
   const { user } = useAuth()
 
-  // When selected pet changes, fetch prescriptions and vaccinations
+  // When selected pet changes, fetch prescriptions, vaccinations, and medicines
   useEffect(() => {
     if (!selectedPetId) return
     let mounted = true
@@ -114,6 +125,16 @@ export function MedicalRecords({ pets, records, userRole, initialPetId, onRecord
           })
         )
         const vax = await petApi.vaccinations(selectedPetId)
+        const meds = await inventoryApi.listAllMedicines()
+
+        // Fetch the pet's vaccination schedule (plan)
+        let schedule: any[] = []
+        try {
+          schedule = await vaccinationPlanApi.getPetSchedule(selectedPetId)
+        } catch (e) {
+          console.warn('[MedicalRecords] getPetSchedule failed', e)
+          schedule = []
+        }
 
         // For vets: backend does not support filtering appointments by pet_id directly.
         // Fetch today's appointments for the current vet and filter by pet.
@@ -157,6 +178,8 @@ export function MedicalRecords({ pets, records, userRole, initialPetId, onRecord
         if (!mounted) return
         setPrescriptions(detailedPres)
         setVaccinations(vax)
+        setVaccinationSchedule(schedule)
+        setMedicines(meds)
         setAppointmentsList(appts)
       } catch (e) {
         console.error('[MedicalRecords] fetch extra data error:', e)
@@ -191,12 +214,43 @@ export function MedicalRecords({ pets, records, userRole, initialPetId, onRecord
         notes: form.notes.trim() || undefined,
       })
       setForm({ diagnosis: '', treatments: '', notes: '' })
-      setAddOpen(false)
+      setAddRecordOpen(false)
       onRecordAdded?.()
     } catch (e) {
       console.error('[MedicalRecords] addRecord error:', e)
     } finally {
       setSaving(false)
+    }
+  }
+
+  const handleRefreshData = async () => {
+    if (!selectedPetId) return
+    try {
+      const pres = await petApi.prescriptions(selectedPetId)
+      const detailedPres = await Promise.all(
+        pres.map(async (item: any) => {
+          const prescriptionId = item.prescription_id || item.id
+          if (!prescriptionId) return item
+          try {
+            return await prescriptionApi.get(prescriptionId)
+          } catch {
+            return item
+          }
+        })
+      )
+      const vax = await petApi.vaccinations(selectedPetId)
+      let schedule: any[] = []
+      try {
+        schedule = await vaccinationPlanApi.getPetSchedule(selectedPetId)
+      } catch (e) {
+        console.warn('[MedicalRecords] getPetSchedule failed', e)
+      }
+      setPrescriptions(detailedPres)
+      setVaccinations(vax)
+      setVaccinationSchedule(schedule)
+      onRecordAdded?.()
+    } catch (e) {
+      console.error('[MedicalRecords] refresh error:', e)
     }
   }
 
@@ -228,10 +282,32 @@ export function MedicalRecords({ pets, records, userRole, initialPetId, onRecord
         )}
 
         {userRole === 'vet' && selectedPetId && (
-          <Button onClick={() => setAddOpen(true)} size="sm">
-            <Plus className="w-4 h-4 mr-2" />
-            Add Record
-          </Button>
+          <div className="flex gap-2">
+            {activeTab === 'records' && (
+              <Button onClick={() => setAddRecordOpen(true)} size="sm">
+                <Plus className="w-4 h-4 mr-2" />
+                Add Record
+              </Button>
+            )}
+            {activeTab === 'prescriptions' && (
+              <Button onClick={() => setPrescriptionModalOpen(true)} size="sm">
+                <Plus className="w-4 h-4 mr-2" />
+                Add Prescription
+              </Button>
+            )}
+            {activeTab === 'vaccinations' && (
+              <Button onClick={() => setVaccinationModalOpen(true)} size="sm">
+                <Plus className="w-4 h-4 mr-2" />
+                Add Vaccination
+              </Button>
+            )}
+            {activeTab === 'vaccination-schedule' && (
+              <Button onClick={() => setApplyVaccinationPlanOpen(true)} size="sm">
+                <Plus className="w-4 h-4 mr-2" />
+                Add to Schedule
+              </Button>
+            )}
+          </div>
         )}
       </div>
 
@@ -295,7 +371,7 @@ export function MedicalRecords({ pets, records, userRole, initialPetId, onRecord
           </div>
 
           {/* Tabbed content: Records / Prescriptions / Vaccinations */}
-          <Tabs defaultValue="records">
+          <Tabs value={activeTab} onValueChange={setActiveTab} defaultValue="records">
             <TabsList className="mb-4 w-fit">
               <TabsTrigger value="records">Records</TabsTrigger>
               <TabsTrigger value="appointments">Appointments</TabsTrigger>
@@ -508,18 +584,64 @@ export function MedicalRecords({ pets, records, userRole, initialPetId, onRecord
             </TabsContent>
 
             <TabsContent value="vaccination-schedule" className="space-y-4">
-              <Card>
-                <CardContent className="py-8 text-center text-muted-foreground">
-                  Vaccination schedule management is being simplified to pet-specific records.
-                </CardContent>
-              </Card>
+              {vaccinationSchedule.length === 0 ? (
+                <Card className="border-blue-200 bg-blue-50">
+                  <CardContent className="py-4 px-5">
+                    <div className="flex gap-4">
+                      <AlertTriangle className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <p className="font-semibold text-blue-900 mb-1">No Schedule Defined</p>
+                        <p className="text-sm text-blue-800">
+                          Define a vaccination schedule for this pet by clicking "Add to Schedule" above.
+                        </p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className="space-y-2">
+                  {vaccinationSchedule.map((schedule: any) => (
+                    <Card key={schedule.pet_vaccination_plan_id || schedule.id}>
+                      <CardContent className="p-4 space-y-3">
+                        <div className="flex items-start justify-between gap-4">
+                          <div>
+                            <p className="font-semibold">{schedule.vaccine_name || schedule.med_name}</p>
+                            <p className="text-xs text-muted-foreground">Schedule entry</p>
+                          </div>
+                          {schedule.repeat_every_months && (
+                            <Badge variant="outline">Every {schedule.repeat_every_months} mo</Badge>
+                          )}
+                        </div>
+
+                        <div className="grid gap-2 text-sm sm:grid-cols-2">
+                          <div>
+                            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Recommended Age</p>
+                            <p>{schedule.age_weeks} weeks</p>
+                          </div>
+                          <div>
+                            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Booster Schedule</p>
+                            <p>{schedule.repeat_every_months ? `Every ${schedule.repeat_every_months} months` : 'No booster'}</p>
+                          </div>
+                        </div>
+
+                        {schedule.notes && (
+                          <div>
+                            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Notes</p>
+                            <p className="text-sm">{schedule.notes}</p>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
             </TabsContent>
           </Tabs>
         </div>
       )}
 
       {/* Add Record Dialog (vet only) */}
-      <Dialog open={addOpen} onOpenChange={(o) => { if (!saving) setAddOpen(o) }}>
+      <Dialog open={addRecordOpen} onOpenChange={(o) => { if (!saving) setAddRecordOpen(o) }}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>Add Medical Record</DialogTitle>
@@ -564,7 +686,7 @@ export function MedicalRecords({ pets, records, userRole, initialPetId, onRecord
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setAddOpen(false)} disabled={saving}>
+            <Button variant="outline" onClick={() => setAddRecordOpen(false)} disabled={saving}>
               Cancel
             </Button>
             <Button
@@ -583,6 +705,40 @@ export function MedicalRecords({ pets, records, userRole, initialPetId, onRecord
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Vaccination Modal */}
+      {selectedPet && (
+        <VaccinationModal
+          open={vaccinationModalOpen}
+          onOpenChange={setVaccinationModalOpen}
+          petId={selectedPetId}
+          petName={selectedPet.name}
+          onSuccess={handleRefreshData}
+        />
+      )}
+
+      {/* Prescription Modal */}
+      {selectedPet && user && (
+        <PrescriptionModal
+          open={prescriptionModalOpen}
+          onOpenChange={setPrescriptionModalOpen}
+          medicines={medicines}
+          petName={selectedPet.name}
+          petId={selectedPetId}
+          vetId={String(user.userId)}
+          onSave={handleRefreshData}
+        />
+      )}
+
+      {/* Apply Vaccination Plan Modal */}
+      <AddVaccinationScheduleModal
+        petId={selectedPetId}
+        petName={selectedPet?.name}
+        isOpen={applyVaccinationPlanOpen}
+        onClose={() => setApplyVaccinationPlanOpen(false)}
+        vaccines={medicines}
+        onAdded={handleRefreshData}
+      />
 
     </div>
   )
