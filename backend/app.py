@@ -6,6 +6,7 @@ from flask_jwt_extended import JWTManager
 
 from config import get_config
 from database.connection import init_pool
+from database.init import init_database
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -25,6 +26,9 @@ def create_app():
 
     # JWT
     JWTManager(app)
+
+    # Initialize database schema, views, procedures
+    init_database()
 
     # DB pool
     init_pool()
