@@ -488,6 +488,11 @@ export const vaccinationApi = {
     const data = await get<any[]>(path)
     return (data || []).map(normalizeVaccination)
   },
+  overdueRaw: async (branchId?: number | string): Promise<any[]> => {
+    const path = branchId ? `/vaccinations/overdue?branch_id=${branchId}` : '/vaccinations/overdue'
+    const data = await get<any[]>(path)
+    return data || []
+  },
   record: (data: { vac_date: string; pet_id: number; barcode_no: string; next_due_date?: string }) =>
     post<{ vac_id: number }>('/vaccinations', data),
   recommendations: (query: string) =>

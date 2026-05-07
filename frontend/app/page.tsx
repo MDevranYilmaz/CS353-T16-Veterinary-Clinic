@@ -20,6 +20,7 @@ import { InventoryTable } from '@/components/inventory-table'
 import { ReferralModal } from '@/components/referral-modal'
 import { BoardingTable } from '@/components/boarding-table'
 import { OwnerBoardingView } from '@/components/owner-boarding-view'
+import { OwnerPetRecords } from '@/components/owner-pet-records'
 import { StaffView } from '@/components/staff-view'
 import {
   OverdueVaccinationsChart,
@@ -64,6 +65,8 @@ export default function VetClinicApp() {
   })
   const [referralKey, setReferralKey] = useState(0)
   const [showAppointmentWizard, setShowAppointmentWizard] = useState(false)
+  const [wizardPetId, setWizardPetId] = useState<string | undefined>(undefined)
+  const [recordsPetId, setRecordsPetId] = useState<string | undefined>(undefined)
   const [referralModal, setReferralModal] = useState(false)
   const [boardingModal, setBoardingModal] = useState(false)
   const [settingsModal, setSettingsModal] = useState(false)
@@ -195,19 +198,17 @@ export default function VetClinicApp() {
             Back to Dashboard
           </Button>
           <AppointmentWizard
+            initialPetId={wizardPetId}
             onComplete={() => {
               setShowAppointmentWizard(false)
+              setWizardPetId(undefined)
               setCurrentView('appointments')
-              // refresh appointments so new booking appears immediately
               reloadOwnerAppointments()
-              // notify other parts of the app (e.g., vet schedule) to refresh
               try {
                 window.dispatchEvent(new CustomEvent('appointments:updated'))
-              } catch (e) {
-                // ignore in non-browser environments
-              }
+              } catch (e) {}
             }}
-            onCancel={() => setShowAppointmentWizard(false)}
+            onCancel={() => { setShowAppointmentWizard(false); setWizardPetId(undefined) }}
           />
         </div>
       )
@@ -262,9 +263,18 @@ export default function VetClinicApp() {
                     <PetCard
                       key={pet.id}
                       pet={pet}
-                      onViewDetails={() => {}}
-                      onBookAppointment={() => setShowAppointmentWizard(true)}
-                      onViewRecords={() => {}}
+                      onViewDetails={() => {
+                        setRecordsPetId(pet.id)
+                        handleViewChange('pet-records')
+                      }}
+                      onBookAppointment={() => {
+                        setWizardPetId(pet.id)
+                        setShowAppointmentWizard(true)
+                      }}
+                      onViewRecords={() => {
+                        setRecordsPetId(pet.id)
+                        handleViewChange('pet-records')
+                      }}
                     />
                   ))}
                 </div>
@@ -403,6 +413,18 @@ export default function VetClinicApp() {
                 </CardContent>
               </Card>
             </div>
+          )
+
+        case 'pet-records':
+          return (
+            <OwnerPetRecords
+              pet={ownerPets.find((p) => p.id === recordsPetId) ?? null}
+              onBack={() => handleViewChange('my-pets')}
+              onBookAppointment={() => {
+                setWizardPetId(recordsPetId)
+                setShowAppointmentWizard(true)
+              }}
+            />
           )
 
         default:

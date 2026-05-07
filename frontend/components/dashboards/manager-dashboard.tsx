@@ -41,6 +41,7 @@ export function ManagerDashboard({ onNavigate, inventoryOnly, billingOnly }: Man
   const [inventory, setInventory] = useState<Medicine[]>([])
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [overdueVaxCount, setOverdueVaxCount] = useState(0)
+  const [overdueVax, setOverdueVax] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
 
   const branchId = user?.branchId
@@ -51,10 +52,11 @@ export function ManagerDashboard({ onNavigate, inventoryOnly, billingOnly }: Man
     Promise.all([
       inventoryApi.listByBranch(branchId),
       billingApi.listAll(),
-      vaccinationApi.overdue(branchId),
+      vaccinationApi.overdueRaw(branchId),
     ]).then(([inv, bills, vax]) => {
       setInventory(inv)
       setInvoices(bills)
+      setOverdueVax(vax)
       setOverdueVaxCount(vax.length)
     }).catch(console.error).finally(() => setLoading(false))
   }, [branchId])
@@ -217,6 +219,12 @@ export function ManagerDashboard({ onNavigate, inventoryOnly, billingOnly }: Man
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="inventory">Inventory</TabsTrigger>
           <TabsTrigger value="billing">Billing</TabsTrigger>
+          <TabsTrigger value="vaccines">
+            Overdue Vaccines
+            {overdueVaxCount > 0 && (
+              <Badge variant="destructive" className="ml-2 text-xs">{overdueVaxCount}</Badge>
+            )}
+          </TabsTrigger>
           <TabsTrigger value="analytics">Analytics</TabsTrigger>
         </TabsList>
 
@@ -367,6 +375,60 @@ export function ManagerDashboard({ onNavigate, inventoryOnly, billingOnly }: Man
                       </div>
                     </div>
                   ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="vaccines" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Syringe className="w-5 h-5 text-primary" />
+                Overdue Vaccinations — Your Branch
+              </CardTitle>
+              <CardDescription>
+                Overdue = past due date set by the vet. Priority: Critical &gt;90 days, High Priority &gt;30 days, Moderate otherwise.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {overdueVax.length === 0 ? (
+                <div className="text-center py-10 text-muted-foreground">
+                  <CheckCircle2 className="w-12 h-12 mx-auto mb-2 text-primary" />
+                  <p>No overdue vaccinations at your branch</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {overdueVax.map((v, i) => {
+                    const priority = v.days_overdue > 90 ? 'Critical' : v.days_overdue > 30 ? 'High Priority' : 'Moderate'
+                    const priorityStyle = v.days_overdue > 90
+                      ? 'bg-red-50 text-red-700 border-red-200'
+                      : v.days_overdue > 30
+                      ? 'bg-amber-50 text-amber-700 border-amber-200'
+                      : 'bg-yellow-50 text-yellow-700 border-yellow-200'
+                    return (
+                      <div key={i} className="flex items-center justify-between p-4 rounded-lg border">
+                        <div className="flex items-center gap-3">
+                          <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-destructive/10">
+                            <Syringe className="w-5 h-5 text-destructive" />
+                          </div>
+                          <div>
+                            <p className="font-medium text-sm">{v.pet_name}
+                              <span className="text-muted-foreground font-normal"> ({v.breed})</span>
+                            </p>
+                            <p className="text-xs text-muted-foreground">{v.vaccine_name} · {v.vac_type}</p>
+                            <p className="text-xs text-muted-foreground">Owner: {v.owner_name} · {v.owner_phone}</p>
+                          </div>
+                        </div>
+                        <div className="text-right space-y-1">
+                          <Badge variant="outline" className={cn('text-xs', priorityStyle)}>{priority}</Badge>
+                          <p className="text-sm font-semibold text-destructive">{v.days_overdue} days overdue</p>
+                          <p className="text-xs text-muted-foreground">Last vet: {v.vet_name}</p>
+                        </div>
+                      </div>
+                    )
+                  })}
                 </div>
               )}
             </CardContent>
