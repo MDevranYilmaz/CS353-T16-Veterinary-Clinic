@@ -14,6 +14,7 @@ import { VetPatientRow } from '@/components/vet-patient-row'
 import { AddPetForm } from '@/components/add-pet-form'
 import { MedicalRecords } from '@/components/medical-records'
 import { EvaluationModal } from '@/components/evaluation-modal'
+import { SettingsModal } from '@/components/settings-modal'
 import { VetSchedule } from '@/components/vet-schedule'
 import { InventoryTable } from '@/components/inventory-table'
 import { ReferralModal } from '@/components/referral-modal'
@@ -52,7 +53,7 @@ import {
   Star,
   Hotel,
 } from 'lucide-react'
-import { petApi, appointmentApi, billingApi, referralApi } from '@/lib/api'
+import { petApi, appointmentApi, billingApi, referralApi, branchApi } from '@/lib/api'
 import type { Pet, Appointment, Invoice, MedicalRecord } from '@/lib/types'
 
 export default function VetClinicApp() {
@@ -65,6 +66,8 @@ export default function VetClinicApp() {
   const [showAppointmentWizard, setShowAppointmentWizard] = useState(false)
   const [referralModal, setReferralModal] = useState(false)
   const [boardingModal, setBoardingModal] = useState(false)
+  const [settingsModal, setSettingsModal] = useState(false)
+  const [branchName, setBranchName] = useState('')
   const [evalModal, setEvalModal] = useState<{ open: boolean; vetId: string; vetName: string }>({
     open: false, vetId: '', vetName: '',
   })
@@ -93,6 +96,14 @@ export default function VetClinicApp() {
       setOwnerAppointments(appts)
       setOwnerBills(bills)
     }).catch(console.error).finally(() => setDataLoading(false))
+  }, [user])
+
+  // Fetch manager branch name
+  useEffect(() => {
+    if (!user || user.role !== 'manager' || !user.branchId) return
+    branchApi.get(user.branchId)
+      .then(branch => setBranchName(branch.name))
+      .catch(console.error)
   }, [user])
 
   const reloadOwnerPets = async () => {
@@ -571,6 +582,7 @@ export default function VetClinicApp() {
         onViewChange={handleViewChange}
         userName={user.fullName || user.name || 'User'}
         onLogout={handleLogout}
+        onSettingsOpen={() => setSettingsModal(true)}
       />
 
       <main className="flex-1 overflow-auto">
@@ -582,37 +594,29 @@ export default function VetClinicApp() {
                 {user.role === 'owner' ? 'Pet Owner' : user.role === 'vet' ? 'Veterinarian' : 'Manager'}
               </Badge>
             </div>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="flex items-center gap-2 h-auto py-1.5">
-                  <Avatar className="w-8 h-8">
-                    <AvatarFallback className="bg-primary/10 text-primary text-sm">
-                      {initials}
-                    </AvatarFallback>
-                  </Avatar>
-                  <span className="text-sm font-medium hidden sm:block">{user.fullName}</span>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem disabled>
-                  <User className="w-4 h-4 mr-2" />
-                  {user.email}
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onClick={handleLogout}
-                  className="text-destructive focus:text-destructive"
-                >
-                  <LogOut className="w-4 h-4 mr-2" />
-                  Sign Out
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <div className="flex items-center gap-2">
+              <Avatar className="w-8 h-8">
+                <AvatarFallback className="bg-primary/10 text-primary text-sm">
+                  {initials}
+                </AvatarFallback>
+              </Avatar>
+              <span className="text-sm font-medium hidden sm:block">{user.fullName}</span>
+            </div>
           </div>
         </header>
 
         <div className="p-6 lg:p-8">{renderContent()}</div>
       </main>
+
+      {/* Settings Modal */}
+      <SettingsModal
+        open={settingsModal}
+        onOpenChange={setSettingsModal}
+        userName={user?.fullName || user?.name || ''}
+        userEmail={user?.email || ''}
+        userRole={user?.role}
+        userBranchName={branchName}
+      />
 
       {/* Evaluation Modal (owner: rate a vet after completed appointment) */}
       <EvaluationModal
