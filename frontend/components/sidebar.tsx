@@ -53,7 +53,6 @@ const roleNavItems: Record<UserRole, { id: string; label: string; icon: React.El
   manager: [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'inventory', label: 'Inventory', icon: Package },
-    { id: 'appointments', label: 'Appointments', icon: Calendar },
     { id: 'billing', label: 'Billing', icon: FileText },
     { id: 'boarding', label: 'Pet Hotel', icon: Hotel },
     { id: 'reports', label: 'Reports', icon: BarChart3 },

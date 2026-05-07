@@ -19,6 +19,7 @@ import { InventoryTable } from '@/components/inventory-table'
 import { ReferralModal } from '@/components/referral-modal'
 import { BoardingTable } from '@/components/boarding-table'
 import { OwnerBoardingView } from '@/components/owner-boarding-view'
+import { StaffView } from '@/components/staff-view'
 import {
   OverdueVaccinationsChart,
   StockConsumptionChart,
@@ -543,6 +544,14 @@ export default function VetClinicApp() {
                 <OverdueVaccinationsChart />
                 <StockConsumptionChart />
               </div>
+            </div>
+          )
+
+        case 'staff':
+          return (
+            <div className="space-y-6">
+              <h1 className="text-2xl font-bold">Staff</h1>
+              <StaffView />
             </div>
           )
 
