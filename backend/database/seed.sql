@@ -10,8 +10,6 @@ TRUNCATE TABLE Evaluation;
 TRUNCATE TABLE Referral;
 TRUNCATE TABLE Vaccination;
 TRUNCATE TABLE PetVaccinationPlan;
-TRUNCATE TABLE VaccinationPlanItem;
-TRUNCATE TABLE VaccinationPlan;
 TRUNCATE TABLE PresMed;
 TRUNCATE TABLE Prescription;
 TRUNCATE TABLE BranchStock;
@@ -236,78 +234,3 @@ INSERT INTO WasteLog (log_id, quantity, waste_date, reason, manager_id, barcode_
 (1, 5, '2026-04-05', 'Expired batch disposed',          6, 'MED-001'),
 (2, 3, '2026-04-10', 'Contaminated vials discarded',    7, 'VAC-003');
 
--- =============================================
--- Vaccination Plans and Items (Feature A)
--- =============================================
-
--- -------------------------
--- VaccinationPlans (6 plans)
--- -------------------------
-INSERT INTO VaccinationPlan (plan_id, plan_name, species, breed, description, created_by, created_date) VALUES
-(1, 'Standard Dog Vaccination Plan',     'Dog',  NULL,                'Complete vaccination schedule for adult dogs', 1, '2026-01-01'),
-(2, 'Standard Cat Vaccination Plan',     'Cat',  NULL,                'Complete vaccination schedule for adult cats', 2, '2026-01-01'),
-(3, 'Puppy Vaccination Plan',            'Dog',  'All Breeds',        'Comprehensive vaccination plan for puppies 6 weeks - 16 weeks', 1, '2026-01-01'),
-(4, 'Kitten Vaccination Plan',           'Cat',  'All Breeds',        'Comprehensive vaccination plan for kittens 6 weeks - 16 weeks', 2, '2026-01-01'),
-(5, 'Small Breed Special Plan',          'Dog',  'Small',             'Specialized plan for small breed dogs with modified schedules', 3, '2026-01-15'),
-(6, 'Show Cat Preparation Plan',         'Cat',  'Siamese/Persian',   'Enhanced vaccination plan for show cats', 5, '2026-01-15');
-
--- -------------------------
--- VaccinationPlanItems (30+ items)
--- -------------------------
-INSERT INTO VaccinationPlanItem (item_id, plan_id, vaccine_barcode, age_weeks, sequence_number, repeat_every_months, gender_applicable, notes) VALUES
--- Plan 1: Standard Dog
-(1,  1, 'VAC-002', 6,   1, 4,  NULL, 'First DHPP vaccination'),
-(2,  1, 'VAC-002', 10,  2, 4,  NULL, 'Second DHPP vaccination'),
-(3,  1, 'VAC-002', 14,  3, 12, NULL, 'Third DHPP vaccination, annual after this'),
-(4,  1, 'VAC-001', 14,  4, 12, NULL, 'Rabies vaccination, annual'),
-(5,  1, 'VAC-003', 16,  5, 12, 'M',  'Bordetella for male dogs only (kennel exposure)'),
-
--- Plan 2: Standard Cat
-(6,  2, 'VAC-002', 8,   1, 4,  NULL, 'First DHPP vaccination for cats'),
-(7,  2, 'VAC-002', 12,  2, 4,  NULL, 'Second DHPP vaccination for cats'),
-(8,  2, 'VAC-002', 16,  3, 12, NULL, 'Third DHPP vaccination, annual after this'),
-(9,  2, 'VAC-001', 12,  4, 12, NULL, 'Rabies vaccination, annual'),
-(10, 2, 'VAC-003', 14,  5, 12, 'F',  'Bordetella for female cats only (indoor exposure)'),
-
--- Plan 3: Puppy
-(11, 3, 'VAC-002', 6,   1, 3,  NULL, 'First DHPP (Puppy series)'),
-(12, 3, 'VAC-002', 9,   2, 3,  NULL, 'Second DHPP (Puppy series)'),
-(13, 3, 'VAC-002', 12,  3, 3,  NULL, 'Third DHPP (Puppy series)'),
-(14, 3, 'VAC-002', 16,  4, 12, NULL, 'Fourth DHPP (Puppy series final), then annual'),
-(15, 3, 'VAC-001', 12,  5, 12, NULL, 'First Rabies vaccination at 12 weeks'),
-(16, 3, 'VAC-003', 8,   6, 12, NULL, 'Bordetella for high-risk puppies'),
-
--- Plan 4: Kitten
-(17, 4, 'VAC-002', 8,   1, 3,  NULL, 'First DHPP (Kitten series)'),
-(18, 4, 'VAC-002', 11,  2, 3,  NULL, 'Second DHPP (Kitten series)'),
-(19, 4, 'VAC-002', 14,  3, 3,  NULL, 'Third DHPP (Kitten series)'),
-(20, 4, 'VAC-002', 17,  4, 12, NULL, 'Fourth DHPP (Kitten series final), then annual'),
-(21, 4, 'VAC-001', 12,  5, 12, NULL, 'First Rabies vaccination at 12 weeks'),
-
--- Plan 5: Small Breed Special
-(22, 5, 'VAC-002', 6,   1, 4,  NULL, 'First DHPP for small breeds'),
-(23, 5, 'VAC-002', 10,  2, 4,  NULL, 'Second DHPP for small breeds'),
-(24, 5, 'VAC-002', 14,  3, 12, NULL, 'Third DHPP for small breeds, annual after'),
-(25, 5, 'VAC-001', 16,  4, 12, NULL, 'Rabies vaccination (delayed for small breeds)'),
-(26, 5, 'VAC-003', 18,  5, 12, 'F',  'Optional Bordetella for female small breeds'),
-
--- Plan 6: Show Cat
-(27, 6, 'VAC-002', 8,   1, 3,  NULL, 'First DHPP for show cats'),
-(28, 6, 'VAC-002', 12,  2, 3,  NULL, 'Second DHPP for show cats'),
-(29, 6, 'VAC-002', 15,  3, 3,  NULL, 'Third DHPP for show cats'),
-(30, 6, 'VAC-001', 12,  4, 12, 'M',  'Rabies for male show cats only'),
-(31, 6, 'VAC-003', 16,  5, 6,  NULL, 'Enhanced Bordetella schedule every 6 months for show cats');
-
--- -------------------------
--- PetVaccinationPlan
--- (Apply plans to existing pets)
--- -------------------------
-INSERT INTO PetVaccinationPlan (pet_id, plan_id, applied_date, applied_by) VALUES
-(1, 1, '2026-04-01', 1),    -- Buddy (Golden Retriever) -> Standard Dog Plan
-(2, 2, '2026-04-02', 1),    -- Whiskers (Siamese Cat) -> Standard Cat Plan
-(3, 1, '2026-03-25', 2),    -- Max (German Shepherd) -> Standard Dog Plan
-(4, 3, '2026-04-05', 1),    -- Bella (Labrador Puppy) -> Puppy Plan
-(5, 5, '2026-04-10', 3),    -- Charlie (Bulldog Small Breed) -> Small Breed Special Plan
-(6, 6, '2026-04-08', 5),    -- Luna (Persian Cat) -> Show Cat Preparation Plan
-(7, 1, '2026-04-12', 2),    -- Rocky (Beagle) -> Standard Dog Plan
-(8, 3, '2026-04-15', 4);    -- Daisy (Poodle Puppy) -> Puppy Plan

@@ -19,6 +19,7 @@ import {
   ChevronRight,
   LogOut,
   Settings,
+  Hotel,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -38,6 +39,7 @@ const roleNavItems: Record<UserRole, { id: string; label: string; icon: React.El
     { id: 'my-pets', label: 'My Pets', icon: PawPrint },
     { id: 'appointments', label: 'Appointments', icon: Calendar },
     { id: 'find-vet', label: 'Find a Vet', icon: Stethoscope },
+    { id: 'pet-hotel', label: 'Pet Hotel', icon: Hotel },
     { id: 'invoices', label: 'My Invoices', icon: FileText },
   ],
   vet: [
@@ -53,6 +55,7 @@ const roleNavItems: Record<UserRole, { id: string; label: string; icon: React.El
     { id: 'inventory', label: 'Inventory', icon: Package },
     { id: 'appointments', label: 'Appointments', icon: Calendar },
     { id: 'billing', label: 'Billing', icon: FileText },
+    { id: 'boarding', label: 'Pet Hotel', icon: Hotel },
     { id: 'reports', label: 'Reports', icon: BarChart3 },
     { id: 'staff', label: 'Staff', icon: Users },
   ],

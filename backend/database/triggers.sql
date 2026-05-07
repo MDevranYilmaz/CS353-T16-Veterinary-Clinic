@@ -108,3 +108,41 @@ BEGIN
 END //
 
 DELIMITER ;
+
+-- Trigger for low stock alert
+CREATE OR REPLACE FUNCTION create_low_stock_alert()
+RETURNS TRIGGER AS $$
+BEGIN
+    INSERT INTO LowStockAlert (medicine_id)
+    VALUES (NEW.id);
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER check_low_stock
+AFTER UPDATE ON medicine
+FOR EACH ROW
+WHEN (NEW.current_stock < NEW.min_stock)
+EXECUTE FUNCTION create_low_stock_alert();
+
+-- Logic to automatically generate a bill
+CREATE OR REPLACE FUNCTION generate_bill_on_completion()
+RETURNS TRIGGER AS $$
+DECLARE
+    total_prescription_cost DECIMAL(10,2);
+BEGIN
+    IF NEW.status = 'Completed' AND OLD.status IS DISTINCT FROM 'Completed' THEN
+        SELECT COALESCE(SUM(cost), 0) INTO total_prescription_cost
+        FROM prescription WHERE appointment_id = NEW.id;
+
+        INSERT INTO bill (appointment_id, total_amount)
+        VALUES (NEW.id, NEW.consultation_fee + total_prescription_cost);
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trigger_generate_bill
+AFTER UPDATE OF status ON appointment
+FOR EACH ROW
+EXECUTE FUNCTION generate_bill_on_completion();

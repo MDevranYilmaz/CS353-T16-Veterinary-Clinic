@@ -10,11 +10,11 @@ DROP TABLE IF EXISTS Evaluation;
 DROP TABLE IF EXISTS Referral;
 DROP TABLE IF EXISTS Vaccination;
 DROP TABLE IF EXISTS PetVaccinationPlan;
-DROP TABLE IF EXISTS VaccinationPlanItem;
-DROP TABLE IF EXISTS VaccinationPlan;
 DROP TABLE IF EXISTS PresMed;
 DROP TABLE IF EXISTS Prescription;
 DROP TABLE IF EXISTS BranchStock;
+DROP TABLE IF EXISTS StockEntry;
+DROP TABLE IF EXISTS LowStockAlert;
 DROP TABLE IF EXISTS Vaccine;
 DROP TABLE IF EXISTS Medicine;
 DROP TABLE IF EXISTS Bill;
@@ -145,47 +145,22 @@ CREATE TABLE Vaccine (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- -------------------------
--- VaccinationPlan
--- -------------------------
-CREATE TABLE VaccinationPlan (
-    plan_id          INT AUTO_INCREMENT PRIMARY KEY,
-    plan_name        VARCHAR(255) NOT NULL,
-    species          VARCHAR(100) NOT NULL,
-    breed            VARCHAR(100),
-    description      TEXT,
-    created_by       INT,
-    created_date     DATETIME DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_plan_vet FOREIGN KEY (created_by) REFERENCES Veterinarian(user_id) ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
--- -------------------------
--- VaccinationPlanItem
--- -------------------------
-CREATE TABLE VaccinationPlanItem (
-    item_id              INT AUTO_INCREMENT PRIMARY KEY,
-    plan_id              INT NOT NULL,
-    vaccine_barcode      VARCHAR(50) NOT NULL,
-    sequence_number      INT,
-    age_weeks            INT NOT NULL,
-    repeat_every_months  INT,
-    gender_applicable    ENUM('M', 'F') NULL,
-    notes                TEXT,
-    CONSTRAINT fk_planitem_plan   FOREIGN KEY (plan_id) REFERENCES VaccinationPlan(plan_id) ON DELETE CASCADE,
-    CONSTRAINT fk_planitem_vaccine FOREIGN KEY (vaccine_barcode) REFERENCES Vaccine(barcode_no) ON DELETE RESTRICT
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
--- -------------------------
 -- PetVaccinationPlan
 -- -------------------------
 CREATE TABLE PetVaccinationPlan (
-    pet_id           INT NOT NULL,
-    plan_id          INT NOT NULL,
-    applied_date     DATETIME DEFAULT CURRENT_TIMESTAMP,
-    applied_by       INT,
-    PRIMARY KEY (pet_id, plan_id),
+    pet_vaccination_plan_id INT AUTO_INCREMENT PRIMARY KEY,
+    pet_id                  INT NOT NULL,
+    vaccine_barcode         VARCHAR(50) NOT NULL,
+    sequence_number         INT,
+    age_weeks               INT NOT NULL,
+    repeat_every_months     INT,
+    gender_applicable       ENUM('M', 'F') NULL,
+    notes                   TEXT,
+    created_by              INT,
+    created_date            DATETIME DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_petplan_pet    FOREIGN KEY (pet_id) REFERENCES Pet(pet_id) ON DELETE CASCADE,
-    CONSTRAINT fk_petplan_plan   FOREIGN KEY (plan_id) REFERENCES VaccinationPlan(plan_id) ON DELETE CASCADE,
-    CONSTRAINT fk_petplan_vet    FOREIGN KEY (applied_by) REFERENCES Veterinarian(user_id) ON DELETE SET NULL
+    CONSTRAINT fk_petplan_vaccine FOREIGN KEY (vaccine_barcode) REFERENCES Vaccine(barcode_no) ON DELETE RESTRICT,
+    CONSTRAINT fk_petplan_vet    FOREIGN KEY (created_by) REFERENCES Veterinarian(user_id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- -------------------------
@@ -201,6 +176,28 @@ CREATE TABLE BranchStock (
     PRIMARY KEY (branch_id, barcode_no),
     CONSTRAINT fk_stock_branch   FOREIGN KEY (branch_id)  REFERENCES Branch(branch_id)   ON DELETE CASCADE,
     CONSTRAINT fk_stock_medicine FOREIGN KEY (barcode_no) REFERENCES Medicine(barcode_no) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- -------------------------
+-- StockEntry
+-- -------------------------
+CREATE TABLE IF NOT EXISTS StockEntry (
+	id SERIAL PRIMARY KEY,
+    medicine_id INT REFERENCES medicine(id) ON DELETE CASCADE,
+    batch_number VARCHAR(50),
+    quantity INT,
+    expiry_date DATE,
+    date_added TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- -------------------------
+-- LowStockAlert
+-- -------------------------
+CREATE TABLE IF NOT EXISTS LowStockAlert (
+    id SERIAL PRIMARY KEY,
+    medicine_id INT REFERENCES medicine(id) ON DELETE CASCADE,
+    alert_message TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- -------------------------

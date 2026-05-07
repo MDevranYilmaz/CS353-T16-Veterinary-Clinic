@@ -1,6 +1,6 @@
 import type { Pet, Veterinarian, Appointment, Medicine, Branch, Invoice, Referral, MedicalRecord, VaccinationSchedule, VaccinationPlan, VaccinationPlanItem, VaccinationScheduleItem } from './types'
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
 // ─── HTTP core ────────────────────────────────────────────────────────────────
 
@@ -542,6 +542,19 @@ export const medicalRecordApi = {
     treatments: string
     notes?: string
   }) => post<{ success: boolean }>('/medical-records', data),
+}
+
+// ─── Boarding ────────────────────────────────────────────────────────────────
+
+export const boardingApi = {
+  list: (branchId: number | string, availableOnly = false) =>
+    get<any[]>(`/boarding?branch_id=${branchId}&available=${availableOnly}`),
+  myReservations: () => get<any[]>('/boarding/my-reservations'),
+  book: (data: { boarding_unit_id: number; pet_id: number; check_in_date: string; check_out_date: string; feeding_instructions?: string }) =>
+    post<any>('/boarding/book', data),
+  checkout: (id: number | string) => put<any>(`/boarding/${id}/checkout`, {}),
+  toggleMaintenance: (id: number | string, under_maintenance: boolean) =>
+    put<any>(`/boarding/${id}/maintenance`, { under_maintenance }),
 }
 
 // ─── Evaluations ─────────────────────────────────────────────────────────────

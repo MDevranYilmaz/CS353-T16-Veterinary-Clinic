@@ -211,6 +211,19 @@ export interface PetVaccinationScheduleItem {
   notes?: string
 }
 
+export interface BoardingUnit {
+  id: string
+  size: 'Small' | 'Medium' | 'Large'
+  status: 'available' | 'occupied' | 'maintenance'
+  branchId: string
+  branchName: string
+  petId?: string
+  petName?: string
+  checkInDate?: string
+  checkOutDate?: string
+  feedingInstructions?: string
+}
+
 export interface ApplicablePlan {
   plan_id: number
   plan_name: string

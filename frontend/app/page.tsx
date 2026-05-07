@@ -15,9 +15,10 @@ import { AddPetForm } from '@/components/add-pet-form'
 import { MedicalRecords } from '@/components/medical-records'
 import { EvaluationModal } from '@/components/evaluation-modal'
 import { VetSchedule } from '@/components/vet-schedule'
-import { VaccinationPlansTab } from '@/components/vaccination-plans-tab'
 import { InventoryTable } from '@/components/inventory-table'
 import { ReferralModal } from '@/components/referral-modal'
+import { BoardingTable } from '@/components/boarding-table'
+import { OwnerBoardingView } from '@/components/owner-boarding-view'
 import {
   OverdueVaccinationsChart,
   StockConsumptionChart,
@@ -48,15 +49,21 @@ import {
   User,
   Loader2,
   Star,
+  Hotel,
 } from 'lucide-react'
 import { petApi, appointmentApi, billingApi, referralApi } from '@/lib/api'
 import type { Pet, Appointment, Invoice, MedicalRecord } from '@/lib/types'
 
 export default function VetClinicApp() {
   const { user, isLoggedIn, isLoading, logout } = useAuth()
-  const [currentView, setCurrentView] = useState('dashboard')
+  const [currentView, setCurrentView] = useState(() => {
+    if (typeof window !== 'undefined') return localStorage.getItem('currentView') || 'dashboard'
+    return 'dashboard'
+  })
+  const [referralKey, setReferralKey] = useState(0)
   const [showAppointmentWizard, setShowAppointmentWizard] = useState(false)
   const [referralModal, setReferralModal] = useState(false)
+  const [boardingModal, setBoardingModal] = useState(false)
   const [evalModal, setEvalModal] = useState<{ open: boolean; vetId: string; vetName: string }>({
     open: false, vetId: '', vetName: '',
   })
@@ -107,6 +114,18 @@ export default function VetClinicApp() {
     }
   }
 
+  // Fetch vet patients eagerly on login so referral modal has the list
+  useEffect(() => {
+    if (!user || user.role !== 'vet') return
+    appointmentApi.listByVet(user.userId)
+      .then(async (appts) => {
+        const petIds = [...new Set(appts.map((a) => a.petId))]
+        const petsData = await Promise.all(petIds.map((id) => petApi.get(id)))
+        setVetPets(petsData)
+      })
+      .catch(console.error)
+  }, [user])
+
   // Fetch vet patients & records when navigating to Patients view
   useEffect(() => {
     if (!user || user.role !== 'vet' || currentView !== 'patients') return
@@ -129,12 +148,14 @@ export default function VetClinicApp() {
 
   const handleViewChange = (view: string, petId?: string) => {
     setCurrentView(view)
+    localStorage.setItem('currentView', view)
     setShowAppointmentWizard(false)
     if (view === 'patients') setInitialRecordPetId(petId ?? null)
   }
 
   const handleLogout = () => {
     logout()
+    localStorage.removeItem('currentView')
     setCurrentView('dashboard')
   }
 
@@ -324,6 +345,15 @@ export default function VetClinicApp() {
         case 'find-vet':
           return <VetFinder onBookAppointment={() => setShowAppointmentWizard(true)} />
 
+        case 'pet-hotel':
+          return (
+            <OwnerBoardingView
+              pets={ownerPets}
+              boardingModal={boardingModal}
+              setBoardingModal={setBoardingModal}
+            />
+          )
+
         case 'invoices':
           return (
             <div className="space-y-6">
@@ -409,7 +439,15 @@ export default function VetClinicApp() {
                     records={vetRecords}
                     userRole="vet"
                     initialPetId={initialRecordPetId ?? undefined}
-                    onRecordAdded={() => handleViewChange('patients')}
+                    onRecordAdded={async () => {
+                      if (!user) return
+                      const appts = await appointmentApi.listByVet(user.userId)
+                      const petIds = [...new Set(appts.map((a) => a.petId))]
+                      const petsData = await Promise.all(petIds.map((id) => petApi.get(id)))
+                      const records = (await Promise.all(petsData.map((p) => petApi.medicalHistory(p.id)))).flat()
+                      setVetPets(petsData)
+                      setVetRecords(records)
+                    }}
                     showBackButton
                     onBack={() => setInitialRecordPetId(null)}
                   />
@@ -435,22 +473,6 @@ export default function VetClinicApp() {
             </div>
           )
 
-        case 'vaccination-plans':
-          return (
-            <div className="space-y-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h1 className="text-2xl font-bold">Vaccination Plans</h1>
-                  <p className="text-muted-foreground">Create and manage vaccination plans for different species and breeds</p>
-                </div>
-                <Button variant="outline" onClick={() => handleViewChange('dashboard')}>
-                  <ArrowLeft className="w-4 h-4 mr-2" />Back to Dashboard
-                </Button>
-              </div>
-              <VaccinationPlansTab />
-            </div>
-          )
-
         case 'referrals':
           return (
             <div className="space-y-6">
@@ -460,20 +482,13 @@ export default function VetClinicApp() {
                   <ArrowLeftRight className="w-4 h-4 mr-2" />Create Referral
                 </Button>
               </div>
-              <VetDashboard onNavigate={handleViewChange} referralsOnly />
+              <VetDashboard key={referralKey} onNavigate={handleViewChange} referralsOnly />
               <ReferralModal
                 open={referralModal}
                 onOpenChange={setReferralModal}
                 currentVetId={String(user.userId)}
-                onSubmit={(referral) => {
-                  referralApi.create({
-                    reason: referral.reason,
-                    referral_date: new Date().toISOString().slice(0, 10),
-                    receiver_vet_id: Number(referral.toVetId),
-                    pet_id: Number(referral.petId),
-                  }).catch(console.error)
-                  setReferralModal(false)
-                }}
+                pets={vetPets}
+                onSubmit={() => setReferralKey((k) => k + 1)}
               />
             </div>
           )
@@ -502,6 +517,19 @@ export default function VetClinicApp() {
             <div className="space-y-6">
               <h1 className="text-2xl font-bold">Billing & Invoices</h1>
               <ManagerDashboard onNavigate={handleViewChange} billingOnly />
+            </div>
+          )
+
+        case 'boarding':
+          return (
+            <div className="space-y-6">
+              <div>
+                <h1 className="text-2xl font-bold">Pet Hotel Management</h1>
+                <p className="text-muted-foreground">Manage boarding units, check out pets, and mark units for maintenance</p>
+              </div>
+              {user.branchId
+                ? <BoardingTable branchId={user.branchId} />
+                : <p className="text-muted-foreground">No branch assigned to your account.</p>}
             </div>
           )
 

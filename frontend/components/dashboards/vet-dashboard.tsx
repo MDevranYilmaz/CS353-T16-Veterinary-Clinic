@@ -2,9 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/lib/auth-context'
-import { appointmentApi, referralApi, vaccinationApi, inventoryApi } from '@/lib/api'
+import { appointmentApi, referralApi, vaccinationApi, inventoryApi, evaluationApi } from '@/lib/api'
 import type { Appointment, Referral, VaccinationSchedule, Medicine } from '@/lib/types'
-import { VaccinationPlansTab } from '@/components/vaccination-plans-tab'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -13,7 +12,7 @@ import { PrescriptionModal } from '@/components/prescription-modal'
 import { VaccinationModal } from '@/components/vaccination-modal'
 import {
   Calendar, Clock, CheckCircle2, Stethoscope,
-  ClipboardList, ArrowLeftRight, Syringe, Dog, Cat, Pill, Eye, Loader2, XCircle,
+  ClipboardList, ArrowLeftRight, Syringe, Dog, Cat, Pill, Eye, Loader2, XCircle, Star,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -24,12 +23,95 @@ interface VetDashboardProps {
   recordsOnly?: boolean
   vaccinationsOnly?: boolean
   referralsOnly?: boolean
-  vaccinationPlansOnly?: boolean
+}
+
+function ReferralsList({ referrals, userId, onAction, getReferralStatusStyle }: {
+  referrals: Referral[]
+  userId: string
+  onAction: (id: string, action: 'Accepted' | 'Rejected') => void
+  getReferralStatusStyle: (status: string) => string
+}) {
+  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'accepted' | 'rejected'>('all')
+  const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'name'>('newest')
+
+  const filtered = referrals
+    .filter((r) => statusFilter === 'all' || r.status.toLowerCase() === statusFilter)
+    .sort((a, b) => {
+      if (sortBy === 'name') return (a.petName ?? '').localeCompare(b.petName ?? '')
+      if (sortBy === 'oldest') return Number(a.id) - Number(b.id)
+      return Number(b.id) - Number(a.id) // newest first
+    })
+
+  return (
+    <Card>
+      <CardContent className="p-6 space-y-4">
+        {/* Filters */}
+        <div className="flex flex-wrap gap-2 items-center justify-between">
+          <div className="flex gap-2">
+            {(['all', 'pending', 'accepted', 'rejected'] as const).map((s) => (
+              <button
+                key={s}
+                onClick={() => setStatusFilter(s)}
+                className={cn(
+                  'px-3 py-1 rounded-full text-xs font-medium border transition-colors capitalize',
+                  statusFilter === s
+                    ? s === 'pending' ? 'bg-amber-50 text-amber-700 border-amber-300'
+                      : s === 'accepted' ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
+                      : s === 'rejected' ? 'bg-red-50 text-red-700 border-red-300'
+                      : 'bg-primary text-primary-foreground border-primary'
+                    : 'bg-background text-muted-foreground border-border hover:bg-muted'
+                )}
+              >{s}</button>
+            ))}
+          </div>
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
+            className="text-xs border rounded-md px-2 py-1 bg-background text-foreground"
+          >
+            <option value="newest">Newest first</option>
+            <option value="oldest">Oldest first</option>
+            <option value="name">Patient name</option>
+          </select>
+        </div>
+
+        {/* List */}
+        {filtered.length === 0 ? (
+          <p className="text-muted-foreground text-center py-8">No referrals found.</p>
+        ) : (
+          <div className="space-y-3">
+            {filtered.map((ref) => (
+              <div key={ref.id} className="p-3 rounded-lg border space-y-2">
+                <div className="flex items-center justify-between">
+                  <p className="font-medium">{ref.petName}</p>
+                  <Badge variant="outline" className={cn('text-xs capitalize', getReferralStatusStyle(ref.status))}>{ref.status}</Badge>
+                </div>
+                <p className="text-sm text-muted-foreground line-clamp-2">{ref.reason}</p>
+                <p className="text-xs text-muted-foreground">
+                  {ref.fromVetId === userId ? `To: ${ref.toVetName}` : `From: ${ref.fromVetName}`}
+                </p>
+                {ref.status === 'pending' && ref.toVetId === userId && (
+                  <div className="flex gap-2">
+                    <Button size="sm" className="flex-1 bg-red-600 hover:bg-red-700 text-white" onClick={() => onAction(ref.id, 'Rejected')}>
+                      Decline
+                    </Button>
+                    <Button size="sm" className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => onAction(ref.id, 'Accepted')}>
+                      Accept
+                    </Button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  )
 }
 
 export function VetDashboard({
   onNavigate,
-  scheduleOnly, patientsOnly, recordsOnly, vaccinationsOnly, referralsOnly, vaccinationPlansOnly,
+  scheduleOnly, patientsOnly, recordsOnly, vaccinationsOnly, referralsOnly,
 }: VetDashboardProps) {
   const { user } = useAuth()
   const [appointments, setAppointments] = useState<Appointment[]>([])
@@ -37,6 +119,15 @@ export function VetDashboard({
   const [overdueVax, setOverdueVax] = useState<VaccinationSchedule[]>([])
   const [medicines, setMedicines] = useState<Medicine[]>([])
   const [loading, setLoading] = useState(true)
+
+  const [vetRating, setVetRating] = useState<{ avg_rating: number; total: number } | null>(null)
+
+  useEffect(() => {
+    if (!user?.userId) return
+    evaluationApi.forVet(user.userId)
+      .then((data: any) => setVetRating(data?.rating ?? null))
+      .catch(console.error)
+  }, [user])
 
   const [prescriptionModal, setPrescriptionModal] = useState<{
     open: boolean; petName: string; petId: string
@@ -75,7 +166,11 @@ export function VetDashboard({
       }
     }
     window.addEventListener('appointments:updated', handler)
-    return () => window.removeEventListener('appointments:updated', handler)
+    window.addEventListener('referrals:updated', handler)
+    return () => {
+      window.removeEventListener('appointments:updated', handler)
+      window.removeEventListener('referrals:updated', handler)
+    }
   }, [user])
 
   const handleStatusUpdate = async (id: string, status: 'Completed' | 'Cancelled') => {
@@ -113,6 +208,15 @@ export function VetDashboard({
       case 'completed': return 'bg-primary/10 text-primary border-0'
       case 'cancelled': return 'bg-muted text-muted-foreground border-0'
       default: return ''
+    }
+  }
+
+  const getReferralStatusStyle = (status: string) => {
+    switch (status.toLowerCase()) {
+      case 'accepted': return 'bg-emerald-50 text-emerald-700 border-emerald-200'
+      case 'pending':  return 'bg-amber-50 text-amber-700 border-amber-200'
+      case 'rejected': return 'bg-red-50 text-red-700 border-red-200'
+      default:         return 'bg-muted text-muted-foreground'
     }
   }
 
@@ -160,45 +264,13 @@ export function VetDashboard({
 
   if (referralsOnly) {
     return (
-      <Card>
-        <CardContent className="p-6">
-          {referrals.length === 0 ? (
-            <p className="text-muted-foreground text-center py-8">No referrals found.</p>
-          ) : (
-            <div className="space-y-3">
-              {referrals.map((ref) => (
-                <div key={ref.id} className="p-3 rounded-lg border space-y-2">
-                  <div className="flex items-center justify-between">
-                    <p className="font-medium">{ref.petName}</p>
-                    <Badge variant="outline" className="text-xs capitalize">{ref.status}</Badge>
-                  </div>
-                  <p className="text-sm text-muted-foreground line-clamp-2">{ref.reason}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {ref.fromVetId === String(user?.userId)
-                      ? `To: ${ref.toVetName}`
-                      : `From: ${ref.fromVetName}`}
-                  </p>
-                  {ref.status === 'pending' && ref.toVetId === String(user?.userId) && (
-                    <div className="flex gap-2">
-                      <Button size="sm" className="flex-1" onClick={() => handleReferralAction(ref.id, 'Accepted')}>
-                        Accept
-                      </Button>
-                      <Button size="sm" variant="outline" className="flex-1" onClick={() => handleReferralAction(ref.id, 'Rejected')}>
-                        Decline
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      <ReferralsList
+        referrals={referrals}
+        userId={String(user?.userId)}
+        onAction={handleReferralAction}
+        getReferralStatusStyle={getReferralStatusStyle}
+      />
     )
-  }
-
-  if (vaccinationPlansOnly) {
-    return <VaccinationPlansTab />
   }
 
   // ── Full Dashboard ─────────────────────────────────────────────────────────
@@ -216,9 +288,6 @@ export function VetDashboard({
           <Button variant="outline" onClick={() => onNavigate('schedule')}>
             <Calendar className="w-4 h-4 mr-2" />View Schedule
           </Button>
-          <Button variant="outline" onClick={() => onNavigate('vaccination-plans')}>
-            <Syringe className="w-4 h-4 mr-2" />Vaccination Plans
-          </Button>
           <Button onClick={() => onNavigate('patients')}>
             <ClipboardList className="w-4 h-4 mr-2" />Patient Records
           </Button>
@@ -226,7 +295,20 @@ export function VetDashboard({
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+        {vetRating && (
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-2">
+                <Star className="w-5 h-5 fill-warning text-warning" />
+                <div>
+                  <p className="text-2xl font-bold">{Number(vetRating.avg_rating).toFixed(1)}</p>
+                  <p className="text-xs text-muted-foreground">{vetRating.total} reviews</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
         {[
           { icon: Calendar, value: appointments.length, label: 'Today', color: 'bg-primary/10 text-primary' },
           { icon: Stethoscope, value: appointments.filter((a) => a.status === 'scheduled').length, label: 'Upcoming', color: 'bg-accent/10 text-accent' },
@@ -379,16 +461,16 @@ export function VetDashboard({
                   <div key={ref.id} className="p-3 rounded-lg border space-y-2">
                     <div className="flex items-center justify-between">
                       <p className="font-medium">{ref.petName}</p>
-                      <Badge variant="outline" className="text-xs">Pending</Badge>
+                      <Badge variant="outline" className={cn('text-xs', getReferralStatusStyle('pending'))}>Pending</Badge>
                     </div>
                     <p className="text-sm text-muted-foreground line-clamp-2">{ref.reason}</p>
                     <p className="text-xs text-muted-foreground">From: {ref.fromVetName}</p>
                     <div className="flex gap-2">
-                      <Button size="sm" className="flex-1" onClick={() => handleReferralAction(ref.id, 'Accepted')}>
-                        Accept
-                      </Button>
-                      <Button size="sm" variant="outline" className="flex-1" onClick={() => handleReferralAction(ref.id, 'Rejected')}>
+                      <Button size="sm" variant="outline" className="flex-1 border-red-200 text-red-600 hover:bg-red-50" onClick={() => handleReferralAction(ref.id, 'Rejected')}>
                         Decline
+                      </Button>
+                      <Button size="sm" className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => handleReferralAction(ref.id, 'Accepted')}>
+                        Accept
                       </Button>
                     </div>
                   </div>

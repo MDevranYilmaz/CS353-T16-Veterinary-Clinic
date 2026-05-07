@@ -5,9 +5,6 @@ import type { Pet, MedicalRecord } from '@/lib/types'
 import { medicalRecordApi, petApi, prescriptionApi } from '@/lib/api'
 import { appointmentApi, referralApi } from '@/lib/api'
 import { useAuth } from '@/lib/auth-context'
-import { VaccinationScheduleDisplay } from './vaccination-schedule-display'
-import { OverdueVaccinationsAlert } from './overdue-vaccinations-alert'
-import { ApplyVaccinationPlanModal } from './apply-vaccination-plan-modal'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -69,7 +66,6 @@ export function MedicalRecords({ pets, records, userRole, initialPetId, onRecord
   const [prescriptions, setPrescriptions] = useState<any[]>([])
   const [vaccinations, setVaccinations] = useState<any[]>([])
   const [appointmentsList, setAppointmentsList] = useState<any[]>([])
-  const [planModalOpen, setPlanModalOpen] = useState(false)
 
   const formatDateTime = (value?: string) => {
     if (!value) return '—'
@@ -512,21 +508,11 @@ export function MedicalRecords({ pets, records, userRole, initialPetId, onRecord
             </TabsContent>
 
             <TabsContent value="vaccination-schedule" className="space-y-4">
-              <OverdueVaccinationsAlert
-                petId={selectedPetId}
-                onViewSchedule={() => {}}
-                onScheduleNow={() => {}}
-              />
-              {userRole === 'vet' && (
-                <Button
-                  size="sm"
-                  onClick={() => setPlanModalOpen(true)}
-                  variant="outline"
-                >
-                  Change Vaccination Plan
-                </Button>
-              )}
-              <VaccinationScheduleDisplay petId={Number(selectedPetId)} />
+              <Card>
+                <CardContent className="py-8 text-center text-muted-foreground">
+                  Vaccination schedule management is being simplified to pet-specific records.
+                </CardContent>
+              </Card>
             </TabsContent>
           </Tabs>
         </div>
@@ -598,17 +584,6 @@ export function MedicalRecords({ pets, records, userRole, initialPetId, onRecord
         </DialogContent>
       </Dialog>
 
-      {selectedPet && (
-        <ApplyVaccinationPlanModal
-          petId={Number(selectedPetId)}
-          petName={selectedPet.name}
-          isOpen={planModalOpen}
-          onClose={() => setPlanModalOpen(false)}
-          onApplied={() => {
-            setPlanModalOpen(false)
-          }}
-        />
-      )}
     </div>
   )
 }
