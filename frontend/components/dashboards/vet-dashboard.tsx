@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react'
 import { useAuth } from '@/lib/auth-context'
 import { appointmentApi, referralApi, vaccinationApi, inventoryApi } from '@/lib/api'
 import type { Appointment, Referral, VaccinationSchedule, Medicine } from '@/lib/types'
-import { VaccinationPlansTab } from '@/components/vaccination-plans-tab'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -24,12 +23,11 @@ interface VetDashboardProps {
   recordsOnly?: boolean
   vaccinationsOnly?: boolean
   referralsOnly?: boolean
-  vaccinationPlansOnly?: boolean
 }
 
 export function VetDashboard({
   onNavigate,
-  scheduleOnly, patientsOnly, recordsOnly, vaccinationsOnly, referralsOnly, vaccinationPlansOnly,
+  scheduleOnly, patientsOnly, recordsOnly, vaccinationsOnly, referralsOnly,
 }: VetDashboardProps) {
   const { user } = useAuth()
   const [appointments, setAppointments] = useState<Appointment[]>([])
@@ -197,10 +195,6 @@ export function VetDashboard({
     )
   }
 
-  if (vaccinationPlansOnly) {
-    return <VaccinationPlansTab />
-  }
-
   // ── Full Dashboard ─────────────────────────────────────────────────────────
   return (
     <div className="space-y-8">
@@ -215,9 +209,6 @@ export function VetDashboard({
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => onNavigate('schedule')}>
             <Calendar className="w-4 h-4 mr-2" />View Schedule
-          </Button>
-          <Button variant="outline" onClick={() => onNavigate('vaccination-plans')}>
-            <Syringe className="w-4 h-4 mr-2" />Vaccination Plans
           </Button>
           <Button onClick={() => onNavigate('patients')}>
             <ClipboardList className="w-4 h-4 mr-2" />Patient Records

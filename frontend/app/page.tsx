@@ -15,7 +15,6 @@ import { AddPetForm } from '@/components/add-pet-form'
 import { MedicalRecords } from '@/components/medical-records'
 import { EvaluationModal } from '@/components/evaluation-modal'
 import { VetSchedule } from '@/components/vet-schedule'
-import { VaccinationPlansTab } from '@/components/vaccination-plans-tab'
 import { InventoryTable } from '@/components/inventory-table'
 import { ReferralModal } from '@/components/referral-modal'
 import {
@@ -432,22 +431,6 @@ export default function VetClinicApp() {
                 <VetDashboard onNavigate={handleViewChange} vaccinationsOnly />
                 <OverdueVaccinationsChart />
               </div>
-            </div>
-          )
-
-        case 'vaccination-plans':
-          return (
-            <div className="space-y-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h1 className="text-2xl font-bold">Vaccination Plans</h1>
-                  <p className="text-muted-foreground">Create and manage vaccination plans for different species and breeds</p>
-                </div>
-                <Button variant="outline" onClick={() => handleViewChange('dashboard')}>
-                  <ArrowLeft className="w-4 h-4 mr-2" />Back to Dashboard
-                </Button>
-              </div>
-              <VaccinationPlansTab />
             </div>
           )
 
