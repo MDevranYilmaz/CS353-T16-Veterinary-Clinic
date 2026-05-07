@@ -18,34 +18,47 @@ bp = Blueprint("vaccinations", __name__, url_prefix="/vaccinations")
 @require_role("veterinarian")
 def create_vaccination():
     data = request.get_json(silent=True) or {}
-    missing = require_fields(data, ["vac_date", "pet_id", "barcode_no"])
+    missing = require_fields(data, ["vac_date", "pet_id", "pet_vaccination_plan_id"])
     if missing:
         return error(f"Missing fields: {', '.join(missing)}", 400)
 
     if not valid_date(data["vac_date"]):
         return error("vac_date must be YYYY-MM-DD", 400)
 
-    if data.get("next_due_date") and not valid_date(data["next_due_date"]):
-        return error("next_due_date must be YYYY-MM-DD", 400)
-
     try:
         with DBContext() as (conn, cur):
             cur.execute("SELECT branch_id FROM Veterinarian WHERE user_id = %s", (g.user["user_id"],))
             row = cur.fetchone()
             branch_id = row["branch_id"] if row else None
+            
+            # Fetch the plan to get vaccine barcode for stock deduction
+            cur.execute(
+                """
+                SELECT vaccine_barcode FROM PetVaccinationPlan 
+                WHERE pet_vaccination_plan_id = %s AND pet_id = %s
+                """,
+                (data["pet_vaccination_plan_id"], data["pet_id"]),
+            )
+            plan_row = cur.fetchone()
+            if not plan_row:
+                return error("PetVaccinationPlan not found or doesn't belong to this pet", 404)
+            
+            barcode_no = plan_row["vaccine_barcode"]
 
         vac_id = VaccinationModel.create(
             data["vac_date"],
-            data.get("next_due_date"),
             data["pet_id"],
             g.user["user_id"],
-            data["barcode_no"],
+            data["pet_vaccination_plan_id"],
         )
 
         if branch_id:
-            deduct_stock(branch_id, data["barcode_no"], 1)
+            deduct_stock(branch_id, barcode_no, 1)
 
         return success({"vac_id": vac_id}, "Vaccination recorded", 201)
+    except ValueError as e:
+        logger.error("create_vaccination validation error: %s", e)
+        return error(str(e), 400)
     except Exception as exc:
         logger.error("create_vaccination error: %s", exc)
         return error("Failed to record vaccination", 500)

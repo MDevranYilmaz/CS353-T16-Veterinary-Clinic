@@ -231,15 +231,17 @@ CREATE TABLE PresMed (
 -- Vaccination
 -- -------------------------
 CREATE TABLE Vaccination (
-    vac_id       INT AUTO_INCREMENT PRIMARY KEY,
-    vac_date     DATE        NOT NULL,
-    next_due_date DATE,
-    pet_id       INT         NOT NULL,
-    vet_id       INT         NOT NULL,
-    barcode_no   VARCHAR(50) NOT NULL,
-    CONSTRAINT fk_vac_pet     FOREIGN KEY (pet_id)     REFERENCES Pet(pet_id)               ON DELETE CASCADE,
-    CONSTRAINT fk_vac_vet     FOREIGN KEY (vet_id)     REFERENCES Veterinarian(user_id)     ON DELETE CASCADE,
-    CONSTRAINT fk_vac_vaccine FOREIGN KEY (barcode_no) REFERENCES Vaccine(barcode_no)       ON DELETE CASCADE
+    vac_id                      INT AUTO_INCREMENT PRIMARY KEY,
+    vac_date                    DATE        NOT NULL,
+    next_due_date               DATE,
+    pet_id                      INT         NOT NULL,
+    vet_id                      INT         NOT NULL,
+    barcode_no                  VARCHAR(50) NOT NULL,
+    pet_vaccination_plan_id     INT         NOT NULL,
+    CONSTRAINT fk_vac_pet       FOREIGN KEY (pet_id)                   REFERENCES Pet(pet_id)                        ON DELETE CASCADE,
+    CONSTRAINT fk_vac_vet       FOREIGN KEY (vet_id)                   REFERENCES Veterinarian(user_id)              ON DELETE CASCADE,
+    CONSTRAINT fk_vac_vaccine   FOREIGN KEY (barcode_no)               REFERENCES Vaccine(barcode_no)                ON DELETE CASCADE,
+    CONSTRAINT fk_vac_plan      FOREIGN KEY (pet_vaccination_plan_id)  REFERENCES PetVaccinationPlan(pet_vaccination_plan_id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- -------------------------

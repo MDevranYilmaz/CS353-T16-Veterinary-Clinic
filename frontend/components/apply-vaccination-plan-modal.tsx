@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { vaccinationPlanApi } from '@/lib/api'
-import { ApplicablePlan } from '@/lib/types'
+import type { Medicine } from '@/lib/types'
 import {
   Dialog,
   DialogContent,
@@ -12,83 +12,80 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Loader2, Check, AlertCircle } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Badge } from '@/components/ui/badge'
 
-interface ApplyVaccinationPlanModalProps {
+interface AddVaccinationScheduleModalProps {
   petId: number | string
   petName?: string
   isOpen: boolean
   onClose: () => void
-  onApplied: () => void
+  vaccines: Medicine[]
+  onAdded: () => void
 }
 
-export function ApplyVaccinationPlanModal({
+export function AddVaccinationScheduleModal({
   petId,
   petName,
   isOpen,
   onClose,
-  onApplied,
-}: ApplyVaccinationPlanModalProps) {
-  const [plans, setPlans] = useState<ApplicablePlan[]>([])
-  const [selectedPlanId, setSelectedPlanId] = useState<number | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [applying, setApplying] = useState(false)
+  vaccines,
+  onAdded,
+}: AddVaccinationScheduleModalProps) {
+  const [selectedVaccine, setSelectedVaccine] = useState('')
+  const [ageWeeks, setAgeWeeks] = useState('0')
+  const [repeatMonths, setRepeatMonths] = useState('')
+  const [notes, setNotes] = useState('')
+  const [adding, setAdding] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
 
-  useEffect(() => {
-    if (isOpen) {
-      loadPlans()
-    }
-  }, [isOpen, petId])
+  const vaccineOptions = vaccines.filter((m) => m.category === 'vaccine')
 
-  const loadPlans = async () => {
-    try {
-      setLoading(true)
-      setError('')
-      setSuccess(false)
-      const data = await vaccinationPlanApi.getApplicablePlans(petId)
-      setPlans(data || [])
-      if (data && data.length > 0) {
-        setSelectedPlanId(data[0].plan_id)
-      }
-    } catch (err) {
-      setError('Failed to load applicable plans')
-      console.error(err)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const handleApply = async () => {
-    if (!selectedPlanId) {
-      setError('Please select a plan')
+  const handleAdd = async () => {
+    if (!selectedVaccine || !ageWeeks) {
+      setError('Please select a vaccine and age weeks')
       return
     }
 
-    setApplying(true)
+    setAdding(true)
     setError('')
     try {
-      await vaccinationPlanApi.applyPlan(petId, selectedPlanId)
+      await vaccinationPlanApi.applyPlan(petId, selectedVaccine, {
+        age_weeks: parseInt(ageWeeks),
+        repeat_every_months: repeatMonths ? parseInt(repeatMonths) : null,
+        notes: notes || null,
+      })
       setSuccess(true)
       setTimeout(() => {
-        onApplied()
+        onAdded()
         handleClose()
       }, 1500)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to apply plan')
+      setError(err instanceof Error ? err.message : 'Failed to add to schedule')
       console.error(err)
     } finally {
-      setApplying(false)
+      setAdding(false)
     }
   }
 
   const handleClose = () => {
     setSuccess(false)
     setError('')
-    setSelectedPlanId(null)
+    setSelectedVaccine('')
+    setAgeWeeks('0')
+    setRepeatMonths('')
+    setNotes('')
     onClose()
   }
 
@@ -96,9 +93,9 @@ export function ApplyVaccinationPlanModal({
     <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Apply Vaccination Plan</DialogTitle>
+          <DialogTitle>Add to Vaccination Schedule</DialogTitle>
           <DialogDescription>
-            {petName && `Select a vaccination plan for ${petName}`}
+            Define a vaccine schedule for {petName}
           </DialogDescription>
         </DialogHeader>
 
@@ -108,9 +105,9 @@ export function ApplyVaccinationPlanModal({
               <Check className="h-6 w-6 text-green-600" />
             </div>
             <div className="text-center">
-              <h3 className="font-semibold">Plan Applied Successfully</h3>
+              <h3 className="font-semibold">Added to Schedule</h3>
               <p className="text-sm text-muted-foreground">
-                The vaccination plan has been applied to the pet.
+                Vaccine has been added to the pet's vaccination schedule.
               </p>
             </div>
           </div>
@@ -123,64 +120,73 @@ export function ApplyVaccinationPlanModal({
               </Alert>
             )}
 
-            {loading ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="h-6 w-6 animate-spin" />
-              </div>
-            ) : plans.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                No applicable plans found for this pet's species/breed
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {plans.map((plan) => (
-                  <div
-                    key={plan.plan_id}
-                    onClick={() => setSelectedPlanId(plan.plan_id)}
-                    className={`p-4 border rounded-lg cursor-pointer transition ${
-                      selectedPlanId === plan.plan_id
-                        ? 'border-blue-500 bg-blue-50'
-                        : 'border-gray-200 hover:border-gray-300'
-                    }`}
-                  >
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <h4 className="font-semibold text-sm">{plan.plan_name}</h4>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          {plan.vaccine_count} vaccines
-                          {plan.breed && ` • Breed: ${plan.breed}`}
-                        </p>
-                      </div>
-                      {selectedPlanId === plan.plan_id && (
-                        <div className="rounded-full bg-blue-500 p-1">
-                          <Check className="h-4 w-4 text-white" />
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+            <div className="space-y-2">
+              <Label>
+                Vaccine <span className="text-destructive">*</span>
+              </Label>
+              <Select value={selectedVaccine} onValueChange={setSelectedVaccine}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a vaccine" />
+                </SelectTrigger>
+                <SelectContent>
+                  {vaccineOptions.map((vaccine) => (
+                    <SelectItem key={vaccine.id} value={vaccine.id}>
+                      {vaccine.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>
+                Age (weeks) <span className="text-destructive">*</span>
+              </Label>
+              <Input
+                type="number"
+                min="0"
+                placeholder="e.g. 8 weeks"
+                value={ageWeeks}
+                onChange={(e) => setAgeWeeks(e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Repeat every (months)</Label>
+              <Input
+                type="number"
+                min="0"
+                placeholder="e.g. 12 for annual booster"
+                value={repeatMonths}
+                onChange={(e) => setRepeatMonths(e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Notes</Label>
+              <Textarea
+                placeholder="Special notes about this vaccine..."
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                rows={2}
+              />
+            </div>
           </div>
         )}
 
         {!success && (
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={handleClose} disabled={applying}>
+            <Button variant="outline" onClick={handleClose} disabled={adding}>
               Cancel
             </Button>
-            <Button
-              type="button"
-              onClick={handleApply}
-              disabled={applying || loading || !selectedPlanId}
-            >
-              {applying ? (
+            <Button onClick={handleAdd} disabled={adding || !selectedVaccine}>
+              {adding ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Applying...
+                  Adding...
                 </>
               ) : (
-                'Apply Plan'
+                'Add to Schedule'
               )}
             </Button>
           </DialogFooter>
