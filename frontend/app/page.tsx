@@ -248,6 +248,10 @@ export default function VetClinicApp() {
                 setWizardPetId(petId)
                 setTimeout(() => setShowAppointmentWizard(true), 0)
               }}
+              onViewRecords={(petId) => {
+                setRecordsPetId(petId)
+                handleViewChange('pet-records')
+              }}
             />
           )
 
@@ -505,6 +509,7 @@ export default function VetClinicApp() {
                 setWizardPetId(recordsPetId)
                 setShowAppointmentWizard(true)
               }}
+              onAppointmentBooked={() => reloadOwnerAppointments()}
             />
           )
 
@@ -518,6 +523,10 @@ export default function VetClinicApp() {
               onBookAppointment={(petId) => {
                 setWizardPetId(petId)
                 setTimeout(() => setShowAppointmentWizard(true), 0)
+              }}
+              onViewRecords={(petId) => {
+                setRecordsPetId(petId)
+                handleViewChange('pet-records')
               }}
             />
           )

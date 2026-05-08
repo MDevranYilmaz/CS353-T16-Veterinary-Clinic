@@ -14,9 +14,10 @@ interface OwnerPetRecordsProps {
   pet: Pet | null
   onBack: () => void
   onBookAppointment: () => void
+  onAppointmentBooked?: () => void
 }
 
-export function OwnerPetRecords({ pet, onBack, onBookAppointment }: OwnerPetRecordsProps) {
+export function OwnerPetRecords({ pet, onBack, onBookAppointment, onAppointmentBooked }: OwnerPetRecordsProps) {
   const [records, setRecords] = useState<MedicalRecord[]>([])
   const [vaccinations, setVaccinations] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
@@ -165,7 +166,7 @@ export function OwnerPetRecords({ pet, onBack, onBookAppointment }: OwnerPetReco
               initialBranchId={vacWizard.branchId}
               initialVetId={vacWizard.vetId}
               lockedNotes={vacWizard.vaccineName}
-              onComplete={() => setVacWizard(null)}
+              onComplete={() => { setVacWizard(null); onAppointmentBooked?.() }}
               onCancel={() => setVacWizard(null)}
             />
           )}

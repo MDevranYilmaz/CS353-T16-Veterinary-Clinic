@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/lib/auth-context'
-import { inventoryApi, billingApi, vaccinationApi, wasteLogApi } from '@/lib/api'
+import { inventoryApi, billingApi, vaccinationApi, wasteLogApi, branchApi } from '@/lib/api'
 import type { Medicine, Invoice } from '@/lib/types'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -53,6 +53,7 @@ export function ManagerDashboard({ onNavigate, inventoryOnly, billingOnly }: Man
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null)
   const [invoiceDetail, setInvoiceDetail] = useState<any | null>(null)
   const [loadingDetail, setLoadingDetail] = useState(false)
+  const [branchName, setBranchName] = useState('')
 
   const openInvoiceDetail = async (invoice: Invoice) => {
     setSelectedInvoice(invoice)
@@ -66,6 +67,14 @@ export function ManagerDashboard({ onNavigate, inventoryOnly, billingOnly }: Man
   }
 
   const branchId = user?.branchId
+
+  useEffect(() => {
+    if (!branchId) return
+    branchApi.list().then(branches => {
+      const b = branches.find(x => String(x.id) === String(branchId))
+      if (b) setBranchName(b.name)
+    }).catch(() => {})
+  }, [branchId])
 
   useEffect(() => {
     if (!branchId) return
@@ -270,7 +279,7 @@ export function ManagerDashboard({ onNavigate, inventoryOnly, billingOnly }: Man
         <div>
           <h1 className="text-2xl font-bold">Manager Dashboard</h1>
           <p className="text-muted-foreground">
-            {user?.fullName ? `${user.fullName} — ` : ''}Branch Overview and Management
+            {user?.fullName ? `${user.fullName} — ` : ''}{branchName || 'Branch'} Overview and Management
           </p>
         </div>
         <div className="flex gap-2">
