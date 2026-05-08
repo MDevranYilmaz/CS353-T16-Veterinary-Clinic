@@ -84,7 +84,7 @@ class VeterinarianModel:
             return cur.fetchone()
 
     @staticmethod
-    def list_all(branch_id=None, specialization=None):
+    def list_all(branch_id=None, specialization=None, name=None):
         with DBContext() as (conn, cur):
             conditions = []
             params = []
@@ -94,6 +94,9 @@ class VeterinarianModel:
             if specialization:
                 conditions.append("v.specialization LIKE %s")
                 params.append(f"%{specialization}%")
+            if name:
+                conditions.append("u.full_name LIKE %s")
+                params.append(f"%{name}%")
             where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
             cur.execute(
                 f"""

@@ -157,7 +157,6 @@ export function PetCard({ pet, onViewDetails, onBookAppointment, onViewRecords, 
 
             <div className="flex gap-4 text-sm text-muted-foreground">
               <span>{pet.age} years old</span>
-              <span>{pet.weight} kg</span>
             </div>
 
             {/* Allergies & Alerts */}

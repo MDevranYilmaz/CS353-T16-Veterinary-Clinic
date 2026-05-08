@@ -17,9 +17,10 @@ def list_vets():
     try:
         branch_id = request.args.get("branch_id")
         specialization = request.args.get("specialization")
+        name = request.args.get("name")
         page, per_page = parse_pagination(request.args)
 
-        vets = VeterinarianModel.list_all(branch_id=branch_id, specialization=specialization)
+        vets = VeterinarianModel.list_all(branch_id=branch_id, specialization=specialization, name=name)
 
         # Optional availability filter by date+time
         date_filter = request.args.get("date")

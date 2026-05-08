@@ -16,7 +16,6 @@ export interface Pet {
   breed: string
   gender: 'M' | 'F'
   age: number
-  weight: number
   ownerId: string
   ownerName: string
   allergies: string[]

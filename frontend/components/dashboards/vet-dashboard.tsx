@@ -33,14 +33,29 @@ function ReferralsList({ referrals, userId, onAction, getReferralStatusStyle }: 
 }) {
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'accepted' | 'rejected'>('all')
   const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'name'>('newest')
+  const [displayReferrals, setDisplayReferrals] = useState<Referral[]>(referrals)
+  const [loading, setLoading] = useState(false)
 
-  const filtered = referrals
-    .filter((r) => statusFilter === 'all' || r.status.toLowerCase() === statusFilter)
-    .sort((a, b) => {
-      if (sortBy === 'name') return (a.petName ?? '').localeCompare(b.petName ?? '')
-      if (sortBy === 'oldest') return Number(a.id) - Number(b.id)
-      return Number(b.id) - Number(a.id) // newest first
-    })
+  // Reload referrals whenever filters change
+  useEffect(() => {
+    const loadFilteredReferrals = async () => {
+      setLoading(true)
+      try {
+        const filtered = await referralApi.list({
+          vet_id: userId,
+          status: statusFilter,
+          sort_by: sortBy,
+        })
+        setDisplayReferrals(filtered)
+      } catch (e) {
+        console.error('[ReferralsList] filter error:', e)
+        setDisplayReferrals(referrals)
+      } finally {
+        setLoading(false)
+      }
+    }
+    loadFilteredReferrals()
+  }, [statusFilter, sortBy, userId])
 
   return (
     <Card>
@@ -68,6 +83,7 @@ function ReferralsList({ referrals, userId, onAction, getReferralStatusStyle }: 
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
             className="text-xs border rounded-md px-2 py-1 bg-background text-foreground"
+            disabled={loading}
           >
             <option value="newest">Newest first</option>
             <option value="oldest">Oldest first</option>
@@ -76,11 +92,15 @@ function ReferralsList({ referrals, userId, onAction, getReferralStatusStyle }: 
         </div>
 
         {/* List */}
-        {filtered.length === 0 ? (
+        {loading ? (
+          <div className="flex justify-center py-4">
+            <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+          </div>
+        ) : displayReferrals.length === 0 ? (
           <p className="text-muted-foreground text-center py-8">No referrals found.</p>
         ) : (
           <div className="space-y-3">
-            {filtered.map((ref) => (
+            {displayReferrals.map((ref) => (
               <div key={ref.id} className="p-3 rounded-lg border space-y-2">
                 <div className="flex items-center justify-between">
                   <p className="font-medium">{ref.petName}</p>

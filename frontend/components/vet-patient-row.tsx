@@ -34,7 +34,6 @@ export function VetPatientRow({ pet, onViewRecords }: VetPatientRowProps) {
           </div>
           <div className="text-xs text-muted-foreground mt-1 flex items-center gap-3">
             <span>{pet.age} yr</span>
-            <span>{pet.weight ?? '—'} kg</span>
             {pet.lastVisit && <span>Last: {pet.lastVisit}</span>}
           </div>
         </div>

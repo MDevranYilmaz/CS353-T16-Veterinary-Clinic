@@ -44,7 +44,7 @@ class ReferralModel:
             )
 
     @staticmethod
-    def list_filtered(vet_id=None, pet_id=None):
+    def list_filtered(vet_id=None, pet_id=None, status=None, sort_by='newest'):
         with DBContext() as (conn, cur):
             conditions = []
             params = []
@@ -54,7 +54,20 @@ class ReferralModel:
             if pet_id:
                 conditions.append("r.pet_id = %s")
                 params.append(pet_id)
+            if status and status.lower() != 'all':
+                conditions.append("r.status = %s")
+                params.append(status.capitalize())
+            
             where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+            
+            # Determine ORDER BY clause based on sort_by parameter
+            if sort_by == 'oldest':
+                order_by = "ORDER BY r.referral_id ASC"
+            elif sort_by == 'name':
+                order_by = "ORDER BY p.name ASC"
+            else:  # newest (default)
+                order_by = "ORDER BY r.referral_date DESC"
+            
             cur.execute(
                 f"""
                 SELECT r.*,
@@ -68,7 +81,7 @@ class ReferralModel:
                 JOIN User ur ON ur.user_id = vr.user_id
                 JOIN Pet p ON p.pet_id = r.pet_id
                 {where}
-                ORDER BY r.referral_date DESC
+                {order_by}
                 """,
                 params,
             )
