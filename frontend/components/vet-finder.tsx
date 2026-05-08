@@ -33,7 +33,12 @@ export function VetFinder({ onBookAppointment }: VetFinderProps) {
     ;(async () => {
       try {
         setLoading(true)
-        const [vetList, branchList] = await Promise.all([vetApi.list(), branchApi.list()])
+        const filters: { branch_id?: string; specialization?: string; name?: string } = {}
+        if (branchFilter !== 'all') filters.branch_id = branchFilter
+        if (specializationFilter !== 'all') filters.specialization = specializationFilter
+        if (searchQuery.trim()) filters.name = searchQuery.trim()
+        
+        const [vetList, branchList] = await Promise.all([vetApi.list(filters), branchApi.list()])
         if (!mounted) return
         setVets(vetList)
         setBranches(branchList)
@@ -49,22 +54,15 @@ export function VetFinder({ onBookAppointment }: VetFinderProps) {
     return () => {
       mounted = false
     }
-  }, [])
+  }, [searchQuery, branchFilter, specializationFilter])
 
   const specializations = useMemo(
     () => [...new Set(vets.map((v) => v.specialization).filter(Boolean))],
     [vets]
   )
 
-  const filteredVets = vets.filter((vet) => {
-    const matchesSearch =
-      vet.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      vet.specialization.toLowerCase().includes(searchQuery.toLowerCase())
-    const matchesBranch = branchFilter === 'all' || vet.branchId === branchFilter
-    const matchesSpec =
-      specializationFilter === 'all' || vet.specialization === specializationFilter
-    return matchesSearch && matchesBranch && matchesSpec
-  })
+  // Filtering now happens at the database level, so just use the fetched vets
+  const filteredVets = vets
 
   return (
     <div className="space-y-6">

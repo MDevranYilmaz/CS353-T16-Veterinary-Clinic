@@ -62,7 +62,6 @@ export function normalizePet(p: any): Pet {
     species: guessSpecies(p.breed),
     breed: p.breed || '',
     age: p.birth_date ? calcAge(p.birth_date) : 0,
-    weight: 0,
     ownerId: String(p.owner_id),
     ownerName: p.owner_name || '',
     allergies: p.allergies ? String(p.allergies).split(',').map((s: string) => s.trim()).filter(Boolean) : [],
@@ -289,10 +288,11 @@ export const branchApi = {
 // ─── Vets ────────────────────────────────────────────────────────────────────
 
 export const vetApi = {
-  list: async (filters?: { branch_id?: string; specialization?: string }): Promise<Veterinarian[]> => {
+  list: async (filters?: { branch_id?: string; specialization?: string; name?: string }): Promise<Veterinarian[]> => {
     const params = new URLSearchParams()
     if (filters?.branch_id) params.set('branch_id', filters.branch_id)
     if (filters?.specialization) params.set('specialization', filters.specialization)
+    if (filters?.name) params.set('name', filters.name)
     const data = await get<any>(`/vets?${params}`)
     const items = data?.items ?? data ?? []
     return items.map(normalizeVet)
@@ -532,10 +532,12 @@ export const vaccinationApi = {
 // ─── Referrals ───────────────────────────────────────────────────────────────
 
 export const referralApi = {
-  list: async (filters?: { vet_id?: string; pet_id?: string }): Promise<Referral[]> => {
+  list: async (filters?: { vet_id?: string; pet_id?: string; status?: string; sort_by?: string }): Promise<Referral[]> => {
     const params = new URLSearchParams()
     if (filters?.vet_id) params.set('vet_id', filters.vet_id)
     if (filters?.pet_id) params.set('pet_id', filters.pet_id)
+    if (filters?.status) params.set('status', filters.status)
+    if (filters?.sort_by) params.set('sort_by', filters.sort_by)
     const data = await get<any>(`/referrals?${params}`)
     const items = data?.items ?? data ?? []
     return items.map(normalizeReferral)

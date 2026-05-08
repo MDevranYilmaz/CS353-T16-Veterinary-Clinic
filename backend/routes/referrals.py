@@ -18,8 +18,10 @@ def list_referrals():
     try:
         vet_id = request.args.get("vet_id")
         pet_id = request.args.get("pet_id")
+        status = request.args.get("status", "all")
+        sort_by = request.args.get("sort_by", "newest")
         page, per_page = parse_pagination(request.args)
-        referrals = ReferralModel.list_filtered(vet_id=vet_id, pet_id=pet_id)
+        referrals = ReferralModel.list_filtered(vet_id=vet_id, pet_id=pet_id, status=status, sort_by=sort_by)
         return success(paginate(referrals, page, per_page))
     except Exception as exc:
         logger.error("list_referrals error: %s", exc)
