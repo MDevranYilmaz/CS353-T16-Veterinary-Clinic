@@ -1,6 +1,7 @@
 import logging
 from flask import Blueprint, request, g
 from services.appointment_service import book_appointment
+from services.billing_service import create_bill
 from models.appointment import AppointmentModel
 from middleware.auth_middleware import require_auth
 from utils.response import success, error
@@ -96,6 +97,11 @@ def update_status(appointment_id):
         if not appt:
             return error("Appointment not found", 404)
         AppointmentModel.update_status(appointment_id, status)
+        if status == "Completed":
+            try:
+                create_bill(appointment_id)
+            except Exception:
+                pass  # bill may already exist; don't fail the status update
         return success({"appointment_id": appointment_id, "status": status}, "Status updated")
     except Exception as exc:
         logger.error("update_status error: %s", exc)

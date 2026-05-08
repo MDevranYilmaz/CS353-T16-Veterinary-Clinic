@@ -381,7 +381,11 @@ INSERT INTO Appointment (appointment_id, date_time, status, type, pet_id, vet_id
 (42, '2026-03-16 10:00:00', 'Cancelled', 'checkup',    21, 2),
 (43, '2026-03-17 11:00:00', 'Cancelled', 'checkup',    27, 3),
 (44, '2026-03-18 09:30:00', 'Cancelled', 'checkup',    31, 5),
-(45, '2026-03-19 14:00:00', 'Cancelled', 'checkup',    35, 46);
+(45, '2026-03-19 14:00:00', 'Cancelled', 'checkup',    35, 46),
+-- Dr. Bob test appointments (today) for testing prescriptions & billing
+(46, '2026-05-08 09:00:00', 'Scheduled', 'checkup',    1,  2),
+(47, '2026-05-08 10:30:00', 'Scheduled', 'surgery',    7,  2),
+(48, '2026-05-08 14:00:00', 'Scheduled', 'vaccination', 6, 2);
 
 -- -------------------------
 -- Bills (19 total - for completed appointments)
@@ -715,7 +719,23 @@ INSERT INTO Vaccination (vac_id, vac_date, next_due_date, pet_id, vet_id, barcod
 (47, '2024-09-05', '2025-09-05', 39, 2, 'VAC-001', 93),
 (48, '2025-04-05', '2026-04-05', 40, 4, 'VAC-001', 95),
 (49, '2025-02-28', '2026-02-28', 41, 1, 'VAC-001', 97),
-(50, '2024-12-20', '2025-12-20', 42, 3, 'VAC-001', 99);
+(50, '2024-12-20', '2025-12-20', 42, 3, 'VAC-001', 99),
+-- Upcoming vaccinations — due within 30 days of 2026-05-08 across multiple owners/pets
+-- Henry's Buddy (pet_id=1, vet_id=1 branch 1): plan 1=VAC-001, plan 2=VAC-002
+(51, '2025-05-10', '2026-05-12', 1,  1, 'VAC-001', 1),
+(52, '2025-05-10', '2026-05-14', 1,  1, 'VAC-002', 2),
+-- Irene's Max (pet_id=3, vet_id=2 branch 1): plan 8=VAC-001
+(53, '2025-06-10', '2026-05-15', 3,  2, 'VAC-001', 8),
+-- Irene's Bella (pet_id=4, vet_id=1 branch 1): plan 13=VAC-001
+(54, '2025-02-01', '2026-05-20', 4,  1, 'VAC-001', 13),
+-- Jack's Charlie (pet_id=5, vet_id=2 branch 1): plan 18=VAC-001
+(55, '2025-05-18', '2026-05-18', 5,  2, 'VAC-001', 18),
+-- Karen's Luna (pet_id=6, vet_id=5 branch 3): plan 21=VAC-001
+(56, '2025-08-12', '2026-05-25', 6,  5, 'VAC-001', 21),
+-- Karen's Rocky (pet_id=7, vet_id=2 branch 1): plan 24=VAC-001
+(57, '2025-09-25', '2026-06-01', 7,  2, 'VAC-001', 24),
+-- Leo's Daisy (pet_id=8, vet_id=4 branch 2): plan 28=VAC-001
+(58, '2025-04-10', '2026-06-05', 8,  4, 'VAC-001', 28);
 
 -- -------------------------
 -- Referrals (15 total)

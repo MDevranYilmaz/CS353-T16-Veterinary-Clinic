@@ -18,9 +18,10 @@ interface OwnerDashboardProps {
   appointments: Appointment[]
   loading?: boolean
   onNavigate: (view: string) => void
+  onBookAppointment?: (petId: string) => void
 }
 
-export function OwnerDashboard({ pets, appointments, loading = false, onNavigate }: OwnerDashboardProps) {
+export function OwnerDashboard({ pets, appointments, loading = false, onNavigate, onBookAppointment }: OwnerDashboardProps) {
   const [vets, setVets] = useState<Veterinarian[]>([])
 
   useEffect(() => {
@@ -110,7 +111,7 @@ export function OwnerDashboard({ pets, appointments, loading = false, onNavigate
                 <PetCard
                   pet={pet}
                   onViewDetails={() => onNavigate('my-pets')}
-                  onBookAppointment={() => onNavigate('appointments')}
+                  onBookAppointment={() => onBookAppointment ? onBookAppointment(pet.id) : onNavigate('appointments')}
                   onViewRecords={() => onNavigate('my-pets')}
                 />
               </div>

@@ -1,7 +1,7 @@
 import logging
 from flask import Blueprint, request, g
 from models.appointment import BillModel
-from services.billing_service import mark_paid, create_bill
+from services.billing_service import mark_paid, create_bill, get_examination_fee
 from middleware.auth_middleware import require_auth
 from middleware.role_guard import require_role
 from utils.response import success, error
@@ -43,6 +43,15 @@ def get_bill(bill_id):
             return error("Bill not found", 404)
 
         with DBContext() as (conn, cur):
+            cur.execute(
+                "SELECT type FROM Appointment WHERE appointment_id = %s",
+                (bill["appointment_id"],),
+            )
+            appt_row = cur.fetchone()
+            appt_type = appt_row["type"] if appt_row else "checkup"
+            bill["appointment_type"] = appt_type
+            bill["examination_fee"] = get_examination_fee(appt_type)
+
             cur.execute(
                 """
                 SELECT pm.*, m.med_name, m.unit_cost,

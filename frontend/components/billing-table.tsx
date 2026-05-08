@@ -41,8 +41,24 @@ export function BillingTable({ bills, userRole, onBillPaid }: BillingTableProps)
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [selectedBill, setSelectedBill] = useState<Bill | null>(null)
+  const [billDetail, setBillDetail] = useState<any | null>(null)
+  const [loadingDetail, setLoadingDetail] = useState(false)
   const [showPaymentModal, setShowPaymentModal] = useState(false)
   const [paying, setPaying] = useState(false)
+
+  const openDetail = async (bill: Bill) => {
+    setSelectedBill(bill)
+    setBillDetail(null)
+    setLoadingDetail(true)
+    try {
+      const data = await billingApi.detail(bill.id)
+      setBillDetail(data)
+    } catch {
+      // fall back to basic info
+    } finally {
+      setLoadingDetail(false)
+    }
+  }
 
   const handlePay = async () => {
     if (!selectedBill) return
@@ -214,7 +230,7 @@ export function BillingTable({ bills, userRole, onBillPaid }: BillingTableProps)
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => setSelectedBill(bill)}
+                            onClick={() => openDetail(bill)}
                           >
                             <Eye className="h-4 w-4" />
                           </Button>
@@ -241,10 +257,10 @@ export function BillingTable({ bills, userRole, onBillPaid }: BillingTableProps)
       </Card>
 
       {/* Bill Details Modal */}
-      <Dialog open={selectedBill !== null && !showPaymentModal} onOpenChange={() => setSelectedBill(null)}>
+      <Dialog open={selectedBill !== null && !showPaymentModal} onOpenChange={() => { setSelectedBill(null); setBillDetail(null) }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Invoice {selectedBill?.id}</DialogTitle>
+            <DialogTitle>Invoice #{selectedBill?.id}</DialogTitle>
             <DialogDescription>Bill details and breakdown</DialogDescription>
           </DialogHeader>
           {selectedBill && (
@@ -256,49 +272,69 @@ export function BillingTable({ bills, userRole, onBillPaid }: BillingTableProps)
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Date</p>
-                  <p className="font-medium">
-                    {new Date(selectedBill.date).toLocaleDateString()}
-                  </p>
+                  <p className="font-medium">{new Date(selectedBill.date).toLocaleDateString()}</p>
+                </div>
+                {selectedBill.ownerName && (
+                  <div>
+                    <p className="text-sm text-muted-foreground">Owner</p>
+                    <p className="font-medium">{selectedBill.ownerName}</p>
+                  </div>
+                )}
+                <div>
+                  <p className="text-sm text-muted-foreground">Status</p>
+                  {getStatusBadge(selectedBill.status)}
                 </div>
               </div>
+
+              {/* Cost breakdown */}
               <div>
-                <p className="text-sm text-muted-foreground mb-2">Services</p>
-                <div className="space-y-1">
-                  {selectedBill.services.map((service, idx) => (
-                    <div
-                      key={idx}
-                      className="flex justify-between text-sm py-1 border-b last:border-0"
-                    >
-                      <span>{service}</span>
-                    </div>
-                  ))}
-                </div>
+                <p className="text-sm font-medium mb-2">Cost Breakdown</p>
+                {loadingDetail ? (
+                  <div className="flex justify-center py-4"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>
+                ) : (
+                  <div className="rounded-lg border overflow-hidden">
+                    <table className="w-full text-sm">
+                      <thead className="bg-muted/50">
+                        <tr>
+                          <th className="text-left px-3 py-2 font-medium">Item</th>
+                          <th className="text-center px-3 py-2 font-medium">Qty</th>
+                          <th className="text-right px-3 py-2 font-medium">Unit</th>
+                          <th className="text-right px-3 py-2 font-medium">Total</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr className="border-t">
+                          <td className="px-3 py-2">Examination Fee</td>
+                          <td className="text-center px-3 py-2">1</td>
+                          <td className="text-right px-3 py-2">{formatCurrency(100)}</td>
+                          <td className="text-right px-3 py-2">{formatCurrency(100)}</td>
+                        </tr>
+                        {(billDetail?.medication_breakdown || []).map((med: any, idx: number) => (
+                          <tr key={idx} className="border-t">
+                            <td className="px-3 py-2">{med.med_name}</td>
+                            <td className="text-center px-3 py-2">{med.dosage}</td>
+                            <td className="text-right px-3 py-2">{formatCurrency(Number(med.unit_cost))}</td>
+                            <td className="text-right px-3 py-2">{formatCurrency(Number(med.line_total))}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
-              <div className="pt-2 border-t">
-                <div className="flex justify-between font-medium">
+
+              <div className="pt-2 border-t space-y-1">
+                <div className="flex justify-between font-semibold text-base">
                   <span>Total</span>
                   <span>{formatCurrency(selectedBill.amount)}</span>
                 </div>
-                {selectedBill.amountPaid && selectedBill.amountPaid > 0 && (
-                  <>
-                    <div className="flex justify-between text-sm text-muted-foreground">
-                      <span>Paid</span>
-                      <span>{formatCurrency(selectedBill.amountPaid)}</span>
-                    </div>
-                    <div className="flex justify-between font-medium text-primary">
-                      <span>Balance Due</span>
-                      <span>
-                        {formatCurrency(selectedBill.amount - selectedBill.amountPaid)}
-                      </span>
-                    </div>
-                  </>
-                )}
               </div>
+
               <div className="flex justify-end gap-2 pt-2">
-                {userRole === "owner" && selectedBill.status !== "paid" && (
+                {userRole !== "vet" && selectedBill.status !== "paid" && (
                   <Button onClick={() => setShowPaymentModal(true)}>
                     <CreditCard className="h-4 w-4 mr-2" />
-                    Pay Now
+                    Mark Paid
                   </Button>
                 )}
               </div>
