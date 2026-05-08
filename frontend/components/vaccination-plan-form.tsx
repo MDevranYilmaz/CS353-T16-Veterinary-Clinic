@@ -34,7 +34,8 @@ export function VaccinationPlanForm({ planId, onSuccess }: VaccinationPlanFormPr
 
   const loadPlan = async () => {
     try {
-      const plan = await vaccinationPlanApi.get(planId!)
+      const result = await vaccinationPlanApi.get(planId!)
+      const plan = result.plan || result
       setPlanName(plan.plan_name)
       setSelectedSpecies(plan.species)
       setBreed(plan.breed || '')

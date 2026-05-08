@@ -249,12 +249,6 @@ export function VetDashboard({
                 <p className="text-xs text-muted-foreground">{vax.vaccineName}</p>
                 <p className="text-xs text-destructive">Due: {vax.dueDate}</p>
               </div>
-              <Button
-                size="sm"
-                onClick={() => setVaccinationModal({ open: true, petName: vax.petName, petId: vax.petId })}
-              >
-                <Syringe className="w-3 h-3 mr-1" />Vaccinate
-              </Button>
             </div>
           ))}
         </CardContent>

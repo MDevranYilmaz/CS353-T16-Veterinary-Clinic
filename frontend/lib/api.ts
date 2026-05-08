@@ -268,6 +268,9 @@ export const authApi = {
   }) => post<AuthPayload>('/auth/register', data),
 
   me: () => get<any>('/auth/me'),
+
+  changePassword: (current_password: string, new_password: string) =>
+    put<any>('/auth/change-password', { current_password, new_password }),
 }
 
 // ─── Branches ────────────────────────────────────────────────────────────────

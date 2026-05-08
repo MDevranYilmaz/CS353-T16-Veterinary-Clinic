@@ -27,19 +27,37 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Download, Eye, Search, CreditCard, Receipt, CheckCircle } from "lucide-react"
+import { Eye, Search, CreditCard, Receipt, CheckCircle, Loader2 } from "lucide-react"
 import type { Bill } from "@/lib/types"
+import { billingApi } from "@/lib/api"
 
 interface BillingTableProps {
   bills: Bill[]
   userRole: "owner" | "vet" | "manager"
+  onBillPaid?: () => void
 }
 
-export function BillingTable({ bills, userRole }: BillingTableProps) {
+export function BillingTable({ bills, userRole, onBillPaid }: BillingTableProps) {
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [selectedBill, setSelectedBill] = useState<Bill | null>(null)
   const [showPaymentModal, setShowPaymentModal] = useState(false)
+  const [paying, setPaying] = useState(false)
+
+  const handlePay = async () => {
+    if (!selectedBill) return
+    setPaying(true)
+    try {
+      await billingApi.pay(selectedBill.id)
+      setShowPaymentModal(false)
+      setSelectedBill(null)
+      onBillPaid?.()
+    } catch (err) {
+      alert('Payment failed: ' + (err instanceof Error ? err.message : 'Unknown error'))
+    } finally {
+      setPaying(false)
+    }
+  }
 
   const filteredBills = bills.filter((bill) => {
     const matchesSearch =
@@ -200,9 +218,6 @@ export function BillingTable({ bills, userRole }: BillingTableProps) {
                           >
                             <Eye className="h-4 w-4" />
                           </Button>
-                          <Button variant="ghost" size="sm">
-                            <Download className="h-4 w-4" />
-                          </Button>
                           {userRole === "owner" && bill.status !== "paid" && (
                             <Button
                               size="sm"
@@ -280,10 +295,6 @@ export function BillingTable({ bills, userRole }: BillingTableProps) {
                 )}
               </div>
               <div className="flex justify-end gap-2 pt-2">
-                <Button variant="outline">
-                  <Download className="h-4 w-4 mr-2" />
-                  Download PDF
-                </Button>
                 {userRole === "owner" && selectedBill.status !== "paid" && (
                   <Button onClick={() => setShowPaymentModal(true)}>
                     <CreditCard className="h-4 w-4 mr-2" />
@@ -317,24 +328,12 @@ export function BillingTable({ bills, userRole }: BillingTableProps) {
                   </span>
                 </div>
               </div>
-              <div className="space-y-3">
-                <div>
-                  <label className="text-sm font-medium">Card Number</label>
-                  <Input placeholder="4242 4242 4242 4242" className="mt-1" />
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-sm font-medium">Expiry</label>
-                    <Input placeholder="MM/YY" className="mt-1" />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium">CVC</label>
-                    <Input placeholder="123" className="mt-1" />
-                  </div>
-                </div>
-              </div>
-              <Button className="w-full" size="lg">
-                <CreditCard className="h-4 w-4 mr-2" />
+              <Button className="w-full" size="lg" onClick={handlePay} disabled={paying}>
+                {paying ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <CreditCard className="h-4 w-4 mr-2" />
+                )}
                 Pay {formatCurrency(selectedBill.amount - (selectedBill.amountPaid || 0))}
               </Button>
               <p className="text-xs text-center text-muted-foreground">
