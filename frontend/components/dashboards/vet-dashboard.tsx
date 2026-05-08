@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/lib/auth-context'
-import { appointmentApi, referralApi, vaccinationApi, inventoryApi, evaluationApi } from '@/lib/api'
+import { appointmentApi, referralApi, vaccinationApi, inventoryApi, evaluationApi, branchApi } from '@/lib/api'
 import type { Appointment, Referral, VaccinationSchedule, Medicine } from '@/lib/types'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -121,6 +121,12 @@ export function VetDashboard({
   const [loading, setLoading] = useState(true)
 
   const [vetRating, setVetRating] = useState<{ avg_rating: number; total: number } | null>(null)
+  const [branchName, setBranchName] = useState('')
+
+  useEffect(() => {
+    if (!user?.branchId) return
+    branchApi.get(user.branchId).then(b => setBranchName(b.name)).catch(() => {})
+  }, [user?.branchId])
 
   useEffect(() => {
     if (!user?.userId) return
@@ -275,6 +281,7 @@ export function VetDashboard({
         <div>
           <h1 className="text-2xl font-bold">Good Morning, {user?.fullName}</h1>
           <p className="text-muted-foreground">
+            {branchName && <span className="font-medium text-foreground">{branchName} · </span>}
             You have {appointments.filter((a) => a.status === 'scheduled').length} appointments scheduled for today
           </p>
         </div>
