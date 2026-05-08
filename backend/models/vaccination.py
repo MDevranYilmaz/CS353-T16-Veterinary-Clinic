@@ -60,8 +60,10 @@ class VaccinationModel:
         with DBContext() as (conn, cur):
             cur.execute(
                 """
-                SELECT vs.*
+                SELECT vs.*, vac.vet_id, v.branch_id
                 FROM VaccinationStatus vs
+                JOIN Vaccination vac ON vac.vac_id = vs.vac_id
+                JOIN Veterinarian v ON v.user_id = vac.vet_id
                 WHERE vs.pet_id = %s
                 ORDER BY vs.vac_date DESC
                 """,

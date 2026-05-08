@@ -37,6 +37,9 @@ interface AppointmentWizardProps {
   onComplete: () => void
   onCancel: () => void
   initialPetId?: string
+  initialBranchId?: string
+  initialVetId?: string
+  lockedNotes?: string
 }
 
 const appointmentTypes = [
@@ -52,16 +55,17 @@ const fallbackSlots = [
   '14:00', '14:30', '15:00', '15:30', '16:00', '16:30',
 ]
 
-export function AppointmentWizard({ onComplete, onCancel, initialPetId }: AppointmentWizardProps) {
+export function AppointmentWizard({ onComplete, onCancel, initialPetId, initialBranchId, initialVetId, lockedNotes }: AppointmentWizardProps) {
   const { user } = useAuth()
+  const vacMode = !!(initialBranchId && initialVetId)
   const [step, setStep] = useState(1)
   const [selectedPet, setSelectedPet] = useState<string>(initialPetId || '')
-  const [selectedType, setSelectedType] = useState<string>('')
-  const [selectedBranch, setSelectedBranch] = useState<string>('')
-  const [selectedVet, setSelectedVet] = useState<string>('')
+  const [selectedType, setSelectedType] = useState<string>(vacMode ? 'vaccination' : '')
+  const [selectedBranch, setSelectedBranch] = useState<string>(initialBranchId || '')
+  const [selectedVet, setSelectedVet] = useState<string>(initialVetId || '')
   const [selectedDate, setSelectedDate] = useState<Date>()
   const [selectedTime, setSelectedTime] = useState<string>('')
-  const [notes, setNotes] = useState('')
+  const [notes, setNotes] = useState(lockedNotes || '')
   const [submitting, setSubmitting] = useState(false)
 
   const [ownerPets, setOwnerPets] = useState<Pet[]>([])
@@ -96,7 +100,7 @@ export function AppointmentWizard({ onComplete, onCancel, initialPetId }: Appoin
   useEffect(() => {
     if (!selectedBranch) return
     setLoadingVets(true)
-    setSelectedVet('')
+    if (!vacMode) setSelectedVet('')
     vetApi.list({ branch_id: selectedBranch })
       .then(setVets)
       .catch(console.error)
@@ -233,7 +237,20 @@ export function AppointmentWizard({ onComplete, onCancel, initialPetId }: Appoin
             <div className="space-y-6">
               <div className="space-y-3">
                 <Label>Select Pet</Label>
-                {loadingPets ? (
+                {vacMode ? (
+                  <div className="flex items-center gap-3 p-4 rounded-lg border border-primary bg-primary/5">
+                    <Avatar className="w-12 h-12 rounded-xl">
+                      <AvatarFallback className="rounded-xl bg-muted">
+                        {selectedPetData?.species === 'dog' ? <Dog className="w-6 h-6 text-muted-foreground" /> : <Cat className="w-6 h-6 text-muted-foreground" />}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1">
+                      <p className="font-medium">{selectedPetData?.name ?? '…'}</p>
+                      <p className="text-sm text-muted-foreground">{selectedPetData?.breed}</p>
+                    </div>
+                    <Check className="w-5 h-5 text-primary" />
+                  </div>
+                ) : loadingPets ? (
                   <div className="flex justify-center py-8">
                     <Loader2 className="w-6 h-6 animate-spin text-primary" />
                   </div>
@@ -291,24 +308,34 @@ export function AppointmentWizard({ onComplete, onCancel, initialPetId }: Appoin
 
               <div className="space-y-3">
                 <Label>Appointment Type</Label>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {appointmentTypes.map((type) => (
-                    <button
-                      key={type.id}
-                      onClick={() => setSelectedType(type.id)}
-                      className={cn(
-                        'flex flex-col p-4 rounded-lg border text-left transition-colors',
-                        selectedType === type.id ? 'border-primary bg-primary/5' : 'hover:bg-muted/50'
-                      )}
-                    >
-                      <div className="flex items-center justify-between">
-                        <p className="font-medium">{type.label}</p>
-                        {selectedType === type.id && <Check className="w-5 h-5 text-primary" />}
-                      </div>
-                      <p className="text-sm text-muted-foreground mt-1">{type.description}</p>
-                    </button>
-                  ))}
-                </div>
+                {vacMode ? (
+                  <div className="flex flex-col p-4 rounded-lg border border-primary bg-primary/5">
+                    <div className="flex items-center justify-between">
+                      <p className="font-medium">Vaccination</p>
+                      <Check className="w-5 h-5 text-primary" />
+                    </div>
+                    <p className="text-sm text-muted-foreground mt-1">Scheduled immunizations</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {appointmentTypes.map((type) => (
+                      <button
+                        key={type.id}
+                        onClick={() => setSelectedType(type.id)}
+                        className={cn(
+                          'flex flex-col p-4 rounded-lg border text-left transition-colors',
+                          selectedType === type.id ? 'border-primary bg-primary/5' : 'hover:bg-muted/50'
+                        )}
+                      >
+                        <div className="flex items-center justify-between">
+                          <p className="font-medium">{type.label}</p>
+                          {selectedType === type.id && <Check className="w-5 h-5 text-primary" />}
+                        </div>
+                        <p className="text-sm text-muted-foreground mt-1">{type.description}</p>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -318,26 +345,51 @@ export function AppointmentWizard({ onComplete, onCancel, initialPetId }: Appoin
             <div className="space-y-6">
               <div className="space-y-3">
                 <Label>Select Branch</Label>
-                <Select value={selectedBranch} onValueChange={setSelectedBranch}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Choose a clinic location" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {branches.map((branch) => (
-                      <SelectItem key={branch.id} value={branch.id}>
-                        <div className="flex items-center gap-2">
-                          <MapPin className="w-4 h-4 text-muted-foreground" />
-                          <span>{branch.name}</span>
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                {vacMode ? (
+                  <div className="flex items-center gap-3 p-3 rounded-lg border border-primary bg-primary/5">
+                    <MapPin className="w-4 h-4 text-primary" />
+                    <span className="font-medium">{selectedBranchData?.name ?? `Branch #${selectedBranch}`}</span>
+                    <Check className="w-4 h-4 text-primary ml-auto" />
+                  </div>
+                ) : (
+                  <Select value={selectedBranch} onValueChange={setSelectedBranch}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Choose a clinic location" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {branches.map((branch) => (
+                        <SelectItem key={branch.id} value={branch.id}>
+                          <div className="flex items-center gap-2">
+                            <MapPin className="w-4 h-4 text-muted-foreground" />
+                            <span>{branch.name}</span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
 
               <div className="space-y-3">
                 <Label>Select Veterinarian</Label>
-                {!selectedBranch ? (
+                {vacMode ? (
+                  selectedVetData ? (
+                    <div className="flex items-center gap-4 p-4 rounded-lg border border-primary bg-primary/5">
+                      <Avatar className="w-12 h-12">
+                        <AvatarFallback className="bg-primary/10 text-primary">
+                          {selectedVetData.name.split(' ').map((n: string) => n[0]).join('')}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1">
+                        <p className="font-medium">{selectedVetData.name}</p>
+                        <p className="text-sm text-muted-foreground">{selectedVetData.specialization}</p>
+                      </div>
+                      <Check className="w-5 h-5 text-primary" />
+                    </div>
+                  ) : (
+                    <div className="flex justify-center py-4"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>
+                  )
+                ) : !selectedBranch ? (
                   <p className="text-sm text-muted-foreground text-center py-4">
                     Select a branch first to see available veterinarians.
                   </p>
@@ -443,12 +495,14 @@ export function AppointmentWizard({ onComplete, onCancel, initialPetId }: Appoin
                 )}
 
                 <div className="space-y-2 mt-4">
-                  <Label>Additional Notes (Optional)</Label>
+                  <Label>{lockedNotes ? 'Vaccination Type' : 'Additional Notes (Optional)'}</Label>
                   <Textarea
                     placeholder="Any specific concerns or information..."
                     value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                    rows={4}
+                    onChange={lockedNotes ? undefined : (e) => setNotes(e.target.value)}
+                    readOnly={!!lockedNotes}
+                    rows={lockedNotes ? 2 : 4}
+                    className={lockedNotes ? 'bg-muted text-muted-foreground cursor-default resize-none' : ''}
                   />
                 </div>
               </div>
