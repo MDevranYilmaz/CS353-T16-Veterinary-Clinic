@@ -381,7 +381,11 @@ INSERT INTO Appointment (appointment_id, date_time, status, type, pet_id, vet_id
 (42, '2026-03-16 10:00:00', 'Cancelled', 'checkup',    21, 2),
 (43, '2026-03-17 11:00:00', 'Cancelled', 'checkup',    27, 3),
 (44, '2026-03-18 09:30:00', 'Cancelled', 'checkup',    31, 5),
-(45, '2026-03-19 14:00:00', 'Cancelled', 'checkup',    35, 46);
+(45, '2026-03-19 14:00:00', 'Cancelled', 'checkup',    35, 46),
+-- Dr. Bob test appointments (today) for testing prescriptions & billing
+(46, '2026-05-08 09:00:00', 'Scheduled', 'checkup',    1,  2),
+(47, '2026-05-08 10:30:00', 'Scheduled', 'surgery',    7,  2),
+(48, '2026-05-08 14:00:00', 'Scheduled', 'vaccination', 6, 2);
 
 -- -------------------------
 -- Bills (19 total - for completed appointments)

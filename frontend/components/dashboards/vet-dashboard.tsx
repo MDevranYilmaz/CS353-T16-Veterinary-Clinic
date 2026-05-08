@@ -518,7 +518,7 @@ export function VetDashboard({
         petName={prescriptionModal.petName}
         petId={prescriptionModal.petId}
         vetId={String(user?.userId ?? '')}
-        onSave={() => setPrescriptionModal({ open: false, petName: '', petId: '' })}
+        onSave={() => { setPrescriptionModal({ open: false, petName: '', petId: '' }); loadData() }}
       />
 
       {/* Vaccination Modal */}

@@ -16,6 +16,13 @@ import {
   AppointmentTrendsChart,
 } from '@/components/analytics-charts'
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog'
+import {
   Package,
   DollarSign,
   AlertTriangle,
@@ -43,6 +50,20 @@ export function ManagerDashboard({ onNavigate, inventoryOnly, billingOnly }: Man
   const [overdueVaxCount, setOverdueVaxCount] = useState(0)
   const [overdueVax, setOverdueVax] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null)
+  const [invoiceDetail, setInvoiceDetail] = useState<any | null>(null)
+  const [loadingDetail, setLoadingDetail] = useState(false)
+
+  const openInvoiceDetail = async (invoice: Invoice) => {
+    setSelectedInvoice(invoice)
+    setInvoiceDetail(null)
+    setLoadingDetail(true)
+    try {
+      const data = await billingApi.detail(invoice.id)
+      setInvoiceDetail(data)
+    } catch {}
+    setLoadingDetail(false)
+  }
 
   const branchId = user?.branchId
 
@@ -116,6 +137,7 @@ export function ManagerDashboard({ onNavigate, inventoryOnly, billingOnly }: Man
 
   if (billingOnly) {
     return (
+      <>
       <Card>
         <CardHeader>
           <CardTitle className="text-lg">Invoice Management</CardTitle>
@@ -127,7 +149,7 @@ export function ManagerDashboard({ onNavigate, inventoryOnly, billingOnly }: Man
           ) : (
             <div className="space-y-3">
               {invoices.map((invoice) => (
-                <div key={invoice.id} className="flex items-center justify-between p-4 rounded-lg border">
+                <div key={invoice.id} className="flex items-center justify-between p-4 rounded-lg border cursor-pointer hover:bg-muted/40 transition-colors" onClick={() => openInvoiceDetail(invoice)}>
                   <div className="flex items-center gap-4">
                     <div className={cn(
                       'flex items-center justify-center w-12 h-12 rounded-lg',
@@ -145,7 +167,7 @@ export function ManagerDashboard({ onNavigate, inventoryOnly, billingOnly }: Man
                       <p className="text-xs text-muted-foreground">{invoice.date}</p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-3">
                     <div className="text-right">
                       <p className="text-xl font-bold">${invoice.total.toFixed(2)}</p>
                       <Badge
@@ -156,7 +178,7 @@ export function ManagerDashboard({ onNavigate, inventoryOnly, billingOnly }: Man
                       </Badge>
                     </div>
                     {invoice.status !== 'paid' && (
-                      <Button size="sm" onClick={() => handleMarkPaid(invoice.id)}>Mark Paid</Button>
+                      <Button size="sm" onClick={(e) => { e.stopPropagation(); handleMarkPaid(invoice.id) }}>Mark Paid</Button>
                     )}
                   </div>
                 </div>
@@ -165,6 +187,79 @@ export function ManagerDashboard({ onNavigate, inventoryOnly, billingOnly }: Man
           )}
         </CardContent>
       </Card>
+
+      {/* Invoice Detail Dialog */}
+
+      <Dialog open={selectedInvoice !== null} onOpenChange={() => { setSelectedInvoice(null); setInvoiceDetail(null) }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Invoice #{selectedInvoice?.id}</DialogTitle>
+            <DialogDescription>{selectedInvoice?.ownerName} — {selectedInvoice?.petName}</DialogDescription>
+          </DialogHeader>
+          {selectedInvoice && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div><p className="text-muted-foreground">Date</p><p className="font-medium">{selectedInvoice.date}</p></div>
+                <div><p className="text-muted-foreground">Status</p>
+                  <Badge variant={selectedInvoice.status === 'paid' ? 'default' : 'outline'} className={cn(selectedInvoice.status === 'paid' && 'bg-primary/10 text-primary border-0')}>
+                    {selectedInvoice.status}
+                  </Badge>
+                </div>
+              </div>
+
+              <div>
+                <p className="text-sm font-medium mb-2">Cost Breakdown</p>
+                {loadingDetail ? (
+                  <div className="flex justify-center py-4"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>
+                ) : (
+                  <div className="rounded-lg border overflow-hidden">
+                    <table className="w-full text-sm">
+                      <thead className="bg-muted/50">
+                        <tr>
+                          <th className="text-left px-3 py-2 font-medium">Item</th>
+                          <th className="text-center px-3 py-2 font-medium">Qty</th>
+                          <th className="text-right px-3 py-2 font-medium">Unit</th>
+                          <th className="text-right px-3 py-2 font-medium">Total</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr className="border-t">
+                          <td className="px-3 py-2 capitalize">
+                            {invoiceDetail?.appointment_type ? `${invoiceDetail.appointment_type} - Examination Fee` : 'Examination Fee'}
+                          </td>
+                          <td className="text-center px-3 py-2">1</td>
+                          <td className="text-right px-3 py-2">${Number(invoiceDetail?.examination_fee ?? 100).toFixed(2)}</td>
+                          <td className="text-right px-3 py-2">${Number(invoiceDetail?.examination_fee ?? 100).toFixed(2)}</td>
+                        </tr>
+                        {(invoiceDetail?.medication_breakdown || []).map((med: any, idx: number) => (
+                          <tr key={idx} className="border-t">
+                            <td className="px-3 py-2">{med.med_name}</td>
+                            <td className="text-center px-3 py-2">{med.dosage}</td>
+                            <td className="text-right px-3 py-2">${Number(med.unit_cost).toFixed(2)}</td>
+                            <td className="text-right px-3 py-2">${Number(med.line_total).toFixed(2)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex justify-between font-semibold border-t pt-2">
+                <span>Total</span>
+                <span>${selectedInvoice.total.toFixed(2)}</span>
+              </div>
+
+              {selectedInvoice.status !== 'paid' && (
+                <Button className="w-full" onClick={() => { handleMarkPaid(selectedInvoice.id); setSelectedInvoice(null); setInvoiceDetail(null) }}>
+                  Mark Paid
+                </Button>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+      </>
     )
   }
 
@@ -181,9 +276,6 @@ export function ManagerDashboard({ onNavigate, inventoryOnly, billingOnly }: Man
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => onNavigate('reports')}>
             <BarChart3 className="w-4 h-4 mr-2" />Reports
-          </Button>
-          <Button onClick={() => onNavigate('inventory')}>
-            <Package className="w-4 h-4 mr-2" />Manage Inventory
           </Button>
         </div>
       </div>
@@ -217,8 +309,6 @@ export function ManagerDashboard({ onNavigate, inventoryOnly, billingOnly }: Man
       <Tabs defaultValue="overview" className="space-y-6">
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="inventory">Inventory</TabsTrigger>
-          <TabsTrigger value="billing">Billing</TabsTrigger>
           <TabsTrigger value="vaccines">
             Overdue Vaccines
             {overdueVaxCount > 0 && (
@@ -272,21 +362,15 @@ export function ManagerDashboard({ onNavigate, inventoryOnly, billingOnly }: Man
                     <p>All items are well-stocked</p>
                   </div>
                 )}
-                <Button variant="outline" className="w-full" onClick={() => onNavigate('inventory')}>
-                  Manage Inventory
-                </Button>
               </CardContent>
             </Card>
 
             {/* Pending Invoices */}
             <Card>
               <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle className="text-lg">Pending Invoices</CardTitle>
-                    <CardDescription>Outstanding payments</CardDescription>
-                  </div>
-                  <Button variant="ghost" size="sm" onClick={() => onNavigate('billing')}>View all</Button>
+                <div>
+                  <CardTitle className="text-lg">Pending Invoices</CardTitle>
+                  <CardDescription>Outstanding payments</CardDescription>
                 </div>
               </CardHeader>
               <CardContent className="space-y-3">
@@ -319,66 +403,6 @@ export function ManagerDashboard({ onNavigate, inventoryOnly, billingOnly }: Man
             <OverdueVaccinationsChart />
             <StockConsumptionChart />
           </div>
-        </TabsContent>
-
-        <TabsContent value="inventory">
-          <InventoryTable
-            items={inventory}
-            onAddStock={handleAddStock}
-            onRemoveStock={handleRemoveStock}
-          />
-        </TabsContent>
-
-        <TabsContent value="billing" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Invoice Management</CardTitle>
-              <CardDescription>Manage billing and payments</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {invoices.length === 0 ? (
-                <p className="text-center text-muted-foreground py-8">No invoices found.</p>
-              ) : (
-                <div className="space-y-3">
-                  {invoices.map((invoice) => (
-                    <div key={invoice.id} className="flex items-center justify-between p-4 rounded-lg border">
-                      <div className="flex items-center gap-4">
-                        <div className={cn(
-                          'flex items-center justify-center w-12 h-12 rounded-lg',
-                          invoice.status === 'paid' ? 'bg-primary/10' : 'bg-warning/10'
-                        )}>
-                          {invoice.status === 'paid' ? (
-                            <CheckCircle2 className="w-6 h-6 text-primary" />
-                          ) : (
-                            <Clock className="w-6 h-6 text-warning-foreground" />
-                          )}
-                        </div>
-                        <div>
-                          <p className="font-medium">Invoice #{invoice.id}</p>
-                          <p className="text-sm text-muted-foreground">{invoice.ownerName} - {invoice.petName}</p>
-                          <p className="text-xs text-muted-foreground">{invoice.date}</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-4">
-                        <div className="text-right">
-                          <p className="text-xl font-bold">${invoice.total.toFixed(2)}</p>
-                          <Badge
-                            variant={invoice.status === 'paid' ? 'default' : 'outline'}
-                            className={cn(invoice.status === 'paid' && 'bg-primary/10 text-primary border-0')}
-                          >
-                            {invoice.status}
-                          </Badge>
-                        </div>
-                        {invoice.status !== 'paid' && (
-                          <Button size="sm" onClick={() => handleMarkPaid(invoice.id)}>Mark Paid</Button>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
         </TabsContent>
 
         <TabsContent value="vaccines" className="space-y-4">

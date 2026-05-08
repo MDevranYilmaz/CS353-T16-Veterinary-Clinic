@@ -32,6 +32,7 @@ import { ReportsPage } from '@/components/reports-page'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import {
   DropdownMenu,
@@ -75,6 +76,20 @@ export default function VetClinicApp() {
   const [evalModal, setEvalModal] = useState<{ open: boolean; vetId: string; vetName: string }>({
     open: false, vetId: '', vetName: '',
   })
+  const [selectedBill, setSelectedBill] = useState<Invoice | null>(null)
+  const [billDetail, setBillDetail] = useState<any | null>(null)
+  const [loadingBillDetail, setLoadingBillDetail] = useState(false)
+
+  const openBillDetail = async (bill: Invoice) => {
+    setSelectedBill(bill)
+    setBillDetail(null)
+    setLoadingBillDetail(true)
+    try {
+      const data = await billingApi.detail(bill.id)
+      setBillDetail(data)
+    } catch {}
+    setLoadingBillDetail(false)
+  }
 
   // Owner data
   const [ownerPets, setOwnerPets] = useState<Pet[]>([])
@@ -199,6 +214,7 @@ export default function VetClinicApp() {
             Back to Dashboard
           </Button>
           <AppointmentWizard
+            key={wizardPetId || 'wizard'}
             initialPetId={wizardPetId}
             onComplete={() => {
               setShowAppointmentWizard(false)
@@ -227,6 +243,10 @@ export default function VetClinicApp() {
               onNavigate={(view) => {
                 if (view === 'appointments') setShowAppointmentWizard(true)
                 else handleViewChange(view)
+              }}
+              onBookAppointment={(petId) => {
+                setWizardPetId(petId)
+                setTimeout(() => setShowAppointmentWizard(true), 0)
               }}
             />
           )
@@ -270,7 +290,7 @@ export default function VetClinicApp() {
                       }}
                       onBookAppointment={() => {
                         setWizardPetId(pet.id)
-                        setShowAppointmentWizard(true)
+                        setTimeout(() => setShowAppointmentWizard(true), 0)
                       }}
                       onViewRecords={() => {
                         setRecordsPetId(pet.id)
@@ -402,7 +422,7 @@ export default function VetClinicApp() {
                     <p className="text-center text-muted-foreground py-8">No invoices found.</p>
                   ) : (
                     ownerBills.map((bill) => (
-                      <div key={bill.id} className="flex items-center justify-between p-4 rounded-lg border">
+                      <div key={bill.id} className="flex items-center justify-between p-4 rounded-lg border cursor-pointer hover:bg-muted/40 transition-colors" onClick={() => openBillDetail(bill)}>
                         <div>
                           <p className="font-medium">{bill.petName}</p>
                           <p className="text-sm text-muted-foreground">{bill.date}</p>
@@ -421,6 +441,58 @@ export default function VetClinicApp() {
                   )}
                 </CardContent>
               </Card>
+
+              {/* Bill Detail Dialog */}
+              <Dialog open={selectedBill !== null} onOpenChange={() => { setSelectedBill(null); setBillDetail(null) }}>
+                <DialogContent className="max-w-md">
+                  <DialogHeader>
+                    <DialogTitle>Invoice #{selectedBill?.id}</DialogTitle>
+                    <DialogDescription>{selectedBill?.petName} — {selectedBill?.date}</DialogDescription>
+                  </DialogHeader>
+                  {selectedBill && (
+                    <div className="space-y-4">
+                      <div className="rounded-lg border overflow-hidden">
+                        <table className="w-full text-sm">
+                          <thead className="bg-muted/50">
+                            <tr>
+                              <th className="text-left px-3 py-2 font-medium">Item</th>
+                              <th className="text-center px-3 py-2 font-medium">Qty</th>
+                              <th className="text-right px-3 py-2 font-medium">Unit</th>
+                              <th className="text-right px-3 py-2 font-medium">Total</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {loadingBillDetail ? (
+                              <tr><td colSpan={4} className="text-center py-4"><Loader2 className="w-5 h-5 animate-spin mx-auto text-muted-foreground" /></td></tr>
+                            ) : (
+                              <>
+                                <tr className="border-t">
+                                  <td className="px-3 py-2 capitalize">{billDetail?.appointment_type ? `${billDetail.appointment_type} - Examination Fee` : 'Examination Fee'}</td>
+                                  <td className="text-center px-3 py-2">1</td>
+                                  <td className="text-right px-3 py-2">${Number(billDetail?.examination_fee ?? 100).toFixed(2)}</td>
+                                  <td className="text-right px-3 py-2">${Number(billDetail?.examination_fee ?? 100).toFixed(2)}</td>
+                                </tr>
+                                {(billDetail?.medication_breakdown || []).map((med: any, idx: number) => (
+                                  <tr key={idx} className="border-t">
+                                    <td className="px-3 py-2">{med.med_name}</td>
+                                    <td className="text-center px-3 py-2">{med.dosage}</td>
+                                    <td className="text-right px-3 py-2">${Number(med.unit_cost).toFixed(2)}</td>
+                                    <td className="text-right px-3 py-2">${Number(med.line_total).toFixed(2)}</td>
+                                  </tr>
+                                ))}
+                              </>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                      <div className="flex justify-between font-semibold border-t pt-2">
+                        <span>Total</span>
+                        <span>${selectedBill.total.toFixed(2)}</span>
+                      </div>
+                    </div>
+                  )}
+                </DialogContent>
+              </Dialog>
             </div>
           )
 
@@ -443,6 +515,10 @@ export default function VetClinicApp() {
               appointments={ownerAppointments}
               loading={dataLoading}
               onNavigate={handleViewChange}
+              onBookAppointment={(petId) => {
+                setWizardPetId(petId)
+                setTimeout(() => setShowAppointmentWizard(true), 0)
+              }}
             />
           )
       }

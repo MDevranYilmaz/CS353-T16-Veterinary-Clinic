@@ -4,19 +4,31 @@ from database.connection import DBContext
 
 logger = logging.getLogger(__name__)
 
-CONSULTATION_FEE = 100.00
+EXAMINATION_FEES = {
+    'checkup': 100.00,
+    'vaccination': 80.00,
+    'followup': 75.00,
+    'surgery': 1000.00,
+    'emergency': 500.00,
+}
+DEFAULT_FEE = 100.00
+
+
+def get_examination_fee(appt_type: str) -> float:
+    return EXAMINATION_FEES.get((appt_type or '').lower(), DEFAULT_FEE)
 
 
 def calculate_bill(appointment_id: int) -> float:
-    """Calculate total bill = consultation fee + medicine costs for all prescriptions on same day/vet."""
+    """Calculate total bill = examination fee (by type) + medicine costs."""
     with DBContext() as (conn, cur):
         cur.execute(
-            "SELECT pet_id, vet_id, date_time FROM Appointment WHERE appointment_id = %s",
+            "SELECT pet_id, vet_id, date_time, type FROM Appointment WHERE appointment_id = %s",
             (appointment_id,),
         )
         appt = cur.fetchone()
         if not appt:
-            return CONSULTATION_FEE
+            return DEFAULT_FEE
+        examination_fee = get_examination_fee(appt.get("type", ""))
 
         cur.execute(
             """
@@ -32,7 +44,7 @@ def calculate_bill(appointment_id: int) -> float:
         )
         row = cur.fetchone()
         med_total = float(row["med_total"]) if row else 0.0
-    return CONSULTATION_FEE + med_total
+    return examination_fee + med_total
 
 
 def create_bill(appointment_id: int) -> int:

@@ -1,7 +1,7 @@
 import logging
 from flask import Blueprint, request, g
 from models.prescription import PrescriptionModel
-from services.inventory_service import check_stock_availability
+from services.inventory_service import check_stock_availability, deduct_stock
 from middleware.auth_middleware import require_auth
 from middleware.role_guard import require_role
 from utils.response import success, error
@@ -24,8 +24,8 @@ def create_prescription():
         return error("medicines must be a non-empty list", 400)
 
     for med in medicines:
-        if not med.get("barcode_no") or not med.get("dosage"):
-            return error("Each medicine requires barcode_no and dosage", 400)
+        if not med.get("barcode_no") or not med.get("quantity"):
+            return error("Each medicine requires barcode_no and quantity", 400)
 
     try:
         from database.connection import DBContext
@@ -35,7 +35,7 @@ def create_prescription():
             branch_id = row["branch_id"] if row else None
 
         if branch_id:
-            items = [{"barcode_no": m["barcode_no"], "quantity": m["dosage"]} for m in medicines]
+            items = [{"barcode_no": m["barcode_no"], "quantity": m["quantity"]} for m in medicines]
             shortages = check_stock_availability(branch_id, items)
             if shortages:
                 return error("Insufficient stock: " + "; ".join(shortages), 409)
@@ -50,9 +50,13 @@ def create_prescription():
             PrescriptionModel.add_medicine(
                 prescription_id,
                 med["barcode_no"],
-                med.get("dosage", 1),
-                med.get("frequency", 1),
+                med.get("quantity", 1),
+                1,
             )
+
+        if branch_id:
+            for med in medicines:
+                deduct_stock(branch_id, med["barcode_no"], med.get("quantity", 1))
 
         return success({"prescription_id": prescription_id}, "Prescription created", 201)
     except Exception as exc:

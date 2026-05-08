@@ -45,11 +45,6 @@ const freqMap: Record<string, number> = {
   'as needed': 1,
 }
 
-function parseDosage(s: string): number {
-  const n = parseFloat(s)
-  return isNaN(n) ? 1 : n
-}
-
 export function PrescriptionModal({
   open,
   onOpenChange,
@@ -58,12 +53,11 @@ export function PrescriptionModal({
   petId,
   onSave,
 }: PrescriptionModalProps) {
-  const [prescriptions, setPrescriptions] = useState<Omit<Prescription, 'id'>[]>([])
+  const [prescriptions, setPrescriptions] = useState<{ medicineId: string; medicineName: string; quantity: number; frequency: string; duration: string }[]>([])
   const [selectedMedicine, setSelectedMedicine] = useState<string>('')
-  const [dosage, setDosage] = useState('')
+  const [quantity, setQuantity] = useState<string>('')
   const [frequency, setFrequency] = useState('')
   const [duration, setDuration] = useState('')
-  const [quantity, setQuantity] = useState('')
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState('')
 
@@ -73,24 +67,16 @@ export function PrescriptionModal({
 
   const handleAddPrescription = () => {
     const medicine = medicines.find((m) => m.id === selectedMedicine)
-    if (!medicine || !dosage || !frequency || !duration || !quantity) return
+    if (!medicine || !frequency || !duration || !quantity) return
 
     setPrescriptions([
       ...prescriptions,
-      {
-        medicineId: medicine.id,
-        medicineName: medicine.name,
-        dosage,
-        frequency,
-        duration,
-        quantity: parseInt(quantity),
-      },
+      { medicineId: medicine.id, medicineName: medicine.name, quantity: parseInt(quantity), frequency, duration },
     ])
     setSelectedMedicine('')
-    setDosage('')
+    setQuantity('')
     setFrequency('')
     setDuration('')
-    setQuantity('')
   }
 
   const handleRemovePrescription = (index: number) => {
@@ -112,10 +98,8 @@ export function PrescriptionModal({
         expiration_date: expDate,
         medicines: prescriptions.map((rx) => ({
           barcode_no: rx.medicineId,
-          dosage: parseDosage(rx.dosage),
+          quantity: Number(rx.quantity),
           frequency: freqMap[rx.frequency] ?? 1,
-          duration: rx.duration,
-          quantity: rx.quantity,
         })),
       })
       setPrescriptions([])
@@ -146,7 +130,6 @@ export function PrescriptionModal({
         </DialogHeader>
 
         <div className="space-y-6 py-4">
-          {/* Add medication form */}
           <div className="space-y-4 p-4 rounded-lg border bg-muted/30">
             <h4 className="font-medium text-sm">Add Medication</h4>
 
@@ -178,11 +161,13 @@ export function PrescriptionModal({
               </div>
 
               <div>
-                <Label>Dosage</Label>
+                <Label>Quantity</Label>
                 <Input
-                  placeholder="e.g., 1 tablet"
-                  value={dosage}
-                  onChange={(e) => setDosage(e.target.value)}
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="e.g. 30"
+                  value={quantity}
+                  onChange={(e) => setQuantity(e.target.value.replace(/[^0-9]/g, ''))}
                 />
               </div>
 
@@ -220,22 +205,11 @@ export function PrescriptionModal({
                   </SelectContent>
                 </Select>
               </div>
-
-              <div>
-                <Label>Quantity</Label>
-                <Input
-                  type="number"
-                  min="1"
-                  placeholder="Total quantity"
-                  value={quantity}
-                  onChange={(e) => setQuantity(e.target.value)}
-                />
-              </div>
             </div>
 
             <Button
               onClick={handleAddPrescription}
-              disabled={!selectedMedicine || !dosage || !frequency || !duration || !quantity}
+              disabled={!selectedMedicine || !frequency || !duration || !quantity}
               className="w-full gap-2"
             >
               <Plus className="w-4 h-4" />
@@ -243,7 +217,6 @@ export function PrescriptionModal({
             </Button>
           </div>
 
-          {/* Prescription list */}
           {prescriptions.length > 0 && (
             <div className="space-y-3">
               <h4 className="font-medium text-sm">Prescription Items</h4>
@@ -265,7 +238,7 @@ export function PrescriptionModal({
                         <div>
                           <p className="font-medium">{rx.medicineName}</p>
                           <p className="text-sm text-muted-foreground">
-                            {rx.dosage} • {rx.frequency} • {rx.duration}
+                            {rx.frequency} • {rx.duration}
                           </p>
                         </div>
                       </div>
