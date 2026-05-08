@@ -609,8 +609,22 @@ export const reportApi = {
         : '/reports/veterinarian-vaccination-performance'
     ),
   branchPerformance: () => get<any[]>('/reports/branch-performance'),
-  stockConsumption: (branchId: number | string) => get<any[]>(`/reports/stock-consumption/${branchId}`),
-  wasteStats: (branchId: number | string) => get<any[]>(`/reports/waste-stats/${branchId}`),
+  stockConsumption: (branchId: number | string, from?: string, to?: string): Promise<any[]> => {
+    const p = new URLSearchParams()
+    if (from) p.set('from', from)
+    if (to) p.set('to', to)
+    const q = p.toString()
+    return get<any[]>(`/reports/stock-consumption/${branchId}${q ? '?' + q : ''}`)
+  },
+  wasteStats: (branchId: number | string, from?: string, to?: string): Promise<any[]> => {
+    const p = new URLSearchParams()
+    if (from) p.set('from', from)
+    if (to) p.set('to', to)
+    const q = p.toString()
+    return get<any[]>(`/reports/waste-stats/${branchId}${q ? '?' + q : ''}`)
+  },
+  costBreakdown: (branchId: number | string): Promise<any[]> =>
+    get<any[]>(`/reports/cost-breakdown/${branchId}`),
 }
 
 // ─── Vaccination Plans ───────────────────────────────────────────────────────
