@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/lib/auth-context'
-import { vaccinationApi, reportApi } from '@/lib/api'
+import { vaccinationApi, reportApi, billingApi } from '@/lib/api'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -162,107 +162,135 @@ export function StockConsumptionChart() {
   )
 }
 
-// ── Revenue Distribution Chart (static — no direct API endpoint) ──────────────
-
-const revenueData = [
-  { name: 'Consultations', value: 35, color: 'var(--color-primary)' },
-  { name: 'Vaccinations', value: 25, color: 'var(--color-accent)' },
-  { name: 'Surgeries', value: 20, color: 'var(--color-chart-3)' },
-  { name: 'Medications', value: 15, color: 'var(--color-chart-4)' },
-  { name: 'Other', value: 5, color: 'var(--color-muted)' },
-]
+// ── Revenue Distribution Chart — uses real billing data ──────────────────────
 
 export function RevenueDistributionChart() {
+  const [pieData, setPieData] = useState<{ name: string; value: number; color: string }[]>([])
+  const [total, setTotal] = useState(0)
+
+  useEffect(() => {
+    billingApi.listAll()
+      .then((bills) => {
+        const paid = bills.filter((b) => b.status === 'paid').reduce((s, b) => s + b.total, 0)
+        const pending = bills.filter((b) => b.status !== 'paid').reduce((s, b) => s + b.total, 0)
+        setTotal(paid + pending)
+        setPieData([
+          { name: 'Paid', value: Math.round(paid * 100) / 100, color: 'var(--color-primary)' },
+          { name: 'Pending', value: Math.round(pending * 100) / 100, color: 'var(--color-accent)' },
+        ])
+      })
+      .catch(console.error)
+  }, [])
+
   return (
     <Card>
       <CardHeader className="pb-2">
-        <CardTitle className="text-lg">Revenue Distribution</CardTitle>
-        <CardDescription>Breakdown by service type</CardDescription>
+        <CardTitle className="text-lg">Revenue Overview</CardTitle>
+        <CardDescription>Paid vs pending — total ${total.toFixed(2)}</CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="h-64">
-          <ResponsiveContainer width="100%" height="100%">
-            <PieChart>
-              <Pie
-                data={revenueData}
-                cx="50%"
-                cy="50%"
-                innerRadius={60}
-                outerRadius={90}
-                paddingAngle={2}
-                dataKey="value"
-                label={({ name, value }) => `${name}: ${value}%`}
-                labelLine={false}
-              >
-                {revenueData.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={entry.color} />
-                ))}
-              </Pie>
-              <Tooltip
-                formatter={(value: number) => [`${value}%`, 'Share']}
-                contentStyle={{
-                  backgroundColor: 'var(--color-card)',
-                  border: '1px solid var(--color-border)',
-                  borderRadius: '8px',
-                }}
-              />
-            </PieChart>
-          </ResponsiveContainer>
-        </div>
-        <div className="flex flex-wrap justify-center gap-3 mt-4">
-          {revenueData.map((item, index) => (
-            <div key={index} className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }} />
-              <span className="text-sm text-muted-foreground">{item.name}</span>
+        {pieData.length === 0 ? (
+          <div className="flex items-center justify-center h-64 text-sm text-muted-foreground">
+            No billing data
+          </div>
+        ) : (
+          <>
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={pieData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={60}
+                    outerRadius={90}
+                    paddingAngle={2}
+                    dataKey="value"
+                    label={({ name, value }) => `${name}: $${value}`}
+                    labelLine={false}
+                  >
+                    {pieData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    formatter={(value: number) => [`$${value.toFixed(2)}`, 'Amount']}
+                    contentStyle={{
+                      backgroundColor: 'var(--color-card)',
+                      border: '1px solid var(--color-border)',
+                      borderRadius: '8px',
+                    }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
             </div>
-          ))}
-        </div>
+            <div className="flex flex-wrap justify-center gap-3 mt-4">
+              {pieData.map((item, index) => (
+                <div key={index} className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }} />
+                  <span className="text-sm text-muted-foreground">{item.name}</span>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
       </CardContent>
     </Card>
   )
 }
 
-// ── Appointment Trends Chart (static — no day-of-week API) ────────────────────
-
-const appointmentTrendsData = [
-  { day: 'Mon', checkups: 12, vaccinations: 8, surgeries: 2, emergency: 3 },
-  { day: 'Tue', checkups: 15, vaccinations: 10, surgeries: 3, emergency: 2 },
-  { day: 'Wed', checkups: 10, vaccinations: 6, surgeries: 4, emergency: 4 },
-  { day: 'Thu', checkups: 18, vaccinations: 12, surgeries: 2, emergency: 1 },
-  { day: 'Fri', checkups: 20, vaccinations: 14, surgeries: 5, emergency: 3 },
-  { day: 'Sat', checkups: 8, vaccinations: 5, surgeries: 1, emergency: 5 },
-]
+// ── Vaccination Trends Chart — uses real monthly vaccination data ──────────────
 
 export function AppointmentTrendsChart() {
+  const [chartData, setChartData] = useState<{ month: string; total: number; pets: number }[]>([])
+
+  useEffect(() => {
+    reportApi.vaccinationTrends()
+      .then((rows: any[]) => {
+        const data = (rows || [])
+          .slice(0, 6)
+          .reverse()
+          .map((r: any) => ({
+            month: r.month || '',
+            total: Number(r.total_vaccinations ?? 0),
+            pets: Number(r.unique_pets_vaccinated ?? 0),
+          }))
+        setChartData(data)
+      })
+      .catch(console.error)
+  }, [])
+
   const chartConfig = {
-    checkups: { label: 'Checkups', color: 'var(--color-primary)' },
-    vaccinations: { label: 'Vaccinations', color: 'var(--color-accent)' },
-    surgeries: { label: 'Surgeries', color: 'var(--color-chart-3)' },
-    emergency: { label: 'Emergency', color: 'var(--color-destructive)' },
+    total: { label: 'Vaccinations', color: 'var(--color-primary)' },
+    pets: { label: 'Unique Pets', color: 'var(--color-accent)' },
   }
 
   return (
     <Card>
       <CardHeader className="pb-2">
-        <CardTitle className="text-lg">Weekly Appointments</CardTitle>
-        <CardDescription>Appointments by type this week</CardDescription>
+        <CardTitle className="text-lg">Vaccination Trends</CardTitle>
+        <CardDescription>Monthly vaccinations administered (last 6 months)</CardDescription>
       </CardHeader>
       <CardContent>
-        <ChartContainer config={chartConfig} className="h-64">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={appointmentTrendsData}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} />
-              <XAxis dataKey="day" tick={{ fontSize: 12 }} />
-              <YAxis tick={{ fontSize: 12 }} />
-              <ChartTooltip content={<ChartTooltipContent />} />
-              <Legend />
-              <Bar dataKey="checkups" fill="var(--color-primary)" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="vaccinations" fill="var(--color-accent)" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="surgeries" fill="var(--color-chart-3)" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="emergency" fill="var(--color-destructive)" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </ChartContainer>
+        {chartData.length === 0 ? (
+          <div className="flex items-center justify-center h-64 text-sm text-muted-foreground">
+            No vaccination data
+          </div>
+        ) : (
+          <ChartContainer config={chartConfig} className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={chartData}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+                <YAxis tick={{ fontSize: 12 }} />
+                <ChartTooltip content={<ChartTooltipContent />} />
+                <Legend />
+                <Bar dataKey="total" fill="var(--color-primary)" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="pets" fill="var(--color-accent)" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </ChartContainer>
+        )}
       </CardContent>
     </Card>
   )

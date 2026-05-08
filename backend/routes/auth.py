@@ -128,6 +128,34 @@ def login():
         return error("Login failed", 500)
 
 
+@bp.route("/change-password", methods=["PUT"])
+@require_auth
+def change_password():
+    data = request.get_json(silent=True) or {}
+    missing = require_fields(data, ["current_password", "new_password"])
+    if missing:
+        return error(f"Missing required fields: {', '.join(missing)}", 400)
+
+    if len(data["new_password"]) < 6:
+        return error("New password must be at least 6 characters", 400)
+
+    user_id = g.user["user_id"]
+    try:
+        with DBContext() as (conn, cur):
+            cur.execute("SELECT password_hash FROM User WHERE user_id = %s", (user_id,))
+            row = cur.fetchone()
+        if not row or not check_password_hash(row["password_hash"], data["current_password"]):
+            return error("Current password is incorrect", 401)
+
+        new_hash = generate_password_hash(data["new_password"])
+        with DBContext() as (conn, cur):
+            cur.execute("UPDATE User SET password_hash = %s WHERE user_id = %s", (new_hash, user_id))
+        return success({}, "Password updated successfully")
+    except Exception as exc:
+        logger.error("change_password error: %s", exc)
+        return error("Failed to update password", 500)
+
+
 @bp.route("/me", methods=["GET"])
 @require_auth
 def me():

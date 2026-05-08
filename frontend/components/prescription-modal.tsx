@@ -22,7 +22,8 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
-import { Pill, Plus, Syringe, Trash2, AlertTriangle, Loader2 } from 'lucide-react'
+import { Pill, Plus, Syringe, Trash2, AlertTriangle, Loader2, AlertCircle } from 'lucide-react'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { cn } from '@/lib/utils'
 
 interface PrescriptionModalProps {
@@ -64,6 +65,7 @@ export function PrescriptionModal({
   const [duration, setDuration] = useState('')
   const [quantity, setQuantity] = useState('')
   const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState('')
 
   const availableMedicines = medicines.filter(
     (m) => m.category === 'medicine' || m.category === 'supplement'
@@ -98,6 +100,7 @@ export function PrescriptionModal({
   const handleSave = async () => {
     if (!petId || prescriptions.length === 0) return
     setSaving(true)
+    setSaveError('')
     try {
       const now = new Date()
       const dateTime = `${now.toISOString().slice(0, 10)} ${now.toTimeString().slice(0, 8)}`
@@ -111,13 +114,15 @@ export function PrescriptionModal({
           barcode_no: rx.medicineId,
           dosage: parseDosage(rx.dosage),
           frequency: freqMap[rx.frequency] ?? 1,
+          duration: rx.duration,
+          quantity: rx.quantity,
         })),
       })
       setPrescriptions([])
       onSave()
       onOpenChange(false)
-    } catch (e) {
-      console.error('[PrescriptionModal] save error:', e)
+    } catch (e: any) {
+      setSaveError(e?.message || 'Failed to save prescription. Please try again.')
     } finally {
       setSaving(false)
     }
@@ -290,6 +295,13 @@ export function PrescriptionModal({
             </div>
           )}
         </div>
+
+        {saveError && (
+          <Alert variant="destructive" className="mx-0">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{saveError}</AlertDescription>
+          </Alert>
+        )}
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>

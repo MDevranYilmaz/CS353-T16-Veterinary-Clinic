@@ -88,20 +88,3 @@ def update_threshold(branch_id, barcode_no):
         return error("Failed to update threshold", 500)
     
 
-@bp.route('/supply', methods=['POST'])
-def handle_log_supply():
-    data = request.json
-    try:
-        # It is routed to the service layer
-        log_supply(data['medicine_id'], data['batch_number'], data['quantity'], data['expiry_date'])
-        return jsonify({"message": "Stock entry inserted"}), 201
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-@bp.route('/expired', methods=['DELETE'])
-def handle_delete_expired():
-    try:
-        deleted_count = delete_expired_stocks()
-        return jsonify({"message": f"Deleted {deleted_count} expired entries"}), 200
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { authApi } from '@/lib/api'
 import {
   Dialog,
   DialogContent,
@@ -40,21 +41,29 @@ export function SettingsModal({ open, onOpenChange, userName, userEmail, userPho
   }
 
   const handleSave = async () => {
+    if (!formData.currentPassword && !formData.newPassword) {
+      onOpenChange(false)
+      return
+    }
+    if (!formData.currentPassword) {
+      alert('Enter your current password')
+      return
+    }
+    if (formData.newPassword !== formData.confirmPassword) {
+      alert('New passwords do not match')
+      return
+    }
+    if (formData.newPassword.length < 6) {
+      alert('New password must be at least 6 characters')
+      return
+    }
     setLoading(true)
     try {
-      // Validate passwords match if changing password
-      if (formData.newPassword && formData.newPassword !== formData.confirmPassword) {
-        alert('New passwords do not match')
-        setLoading(false)
-        return
-      }
-
-      // TODO: Make API call to update user profile
-      // For now, just show success
-      alert('Profile updated successfully')
+      await authApi.changePassword(formData.currentPassword, formData.newPassword)
+      alert('Password updated successfully')
       onOpenChange(false)
-    } catch (error) {
-      alert('Update failed: ' + (error instanceof Error ? error.message : 'Unknown error'))
+    } catch (err) {
+      alert('Failed: ' + (err instanceof Error ? err.message : 'Unknown error'))
     } finally {
       setLoading(false)
     }

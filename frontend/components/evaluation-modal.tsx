@@ -13,7 +13,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Star, Loader2 } from 'lucide-react'
+import { Star, Loader2, AlertCircle } from 'lucide-react'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { cn } from '@/lib/utils'
 
 const ratingLabels = ['', 'Poor', 'Fair', 'Good', 'Very Good', 'Excellent']
@@ -37,18 +38,21 @@ export function EvaluationModal({
   const [hovered, setHovered] = useState(0)
   const [comment, setComment] = useState('')
   const [saving, setSaving] = useState(false)
+  const [submitError, setSubmitError] = useState('')
 
   const handleClose = () => {
     if (saving) return
     setRating(0)
     setHovered(0)
     setComment('')
+    setSubmitError('')
     onOpenChange(false)
   }
 
   const handleSubmit = async () => {
     if (!rating) return
     setSaving(true)
+    setSubmitError('')
     try {
       await evaluationApi.create({
         points: rating,
@@ -60,8 +64,8 @@ export function EvaluationModal({
       setComment('')
       onSuccess?.()
       onOpenChange(false)
-    } catch (e) {
-      console.error('[EvaluationModal] submit error:', e)
+    } catch (e: any) {
+      setSubmitError(e?.message || 'Failed to submit review. Please try again.')
     } finally {
       setSaving(false)
     }
@@ -126,6 +130,13 @@ export function EvaluationModal({
             />
           </div>
         </div>
+
+        {submitError && (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{submitError}</AlertDescription>
+          </Alert>
+        )}
 
         <DialogFooter>
           <Button variant="outline" onClick={handleClose} disabled={saving}>

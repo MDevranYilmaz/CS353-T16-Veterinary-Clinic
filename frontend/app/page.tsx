@@ -53,6 +53,7 @@ import {
   Loader2,
   Star,
   Hotel,
+  FileDown,
 } from 'lucide-react'
 import { petApi, appointmentApi, billingApi, referralApi, branchApi } from '@/lib/api'
 import type { Pet, Appointment, Invoice, MedicalRecord } from '@/lib/types'
@@ -567,11 +568,78 @@ export default function VetClinicApp() {
             </div>
           )
 
-        case 'reports':
+        case 'reports': {
+          const handleDownloadPDF = () => {
+            const area = document.getElementById('report-print-area')
+            if (!area) return
+
+            // Collect all <style> tags from the current document
+            const styles = Array.from(document.querySelectorAll('style'))
+              .map(s => s.outerHTML)
+              .join('\n')
+
+            const date = new Date().toLocaleDateString('en-US', {
+              year: 'numeric', month: 'long', day: 'numeric',
+            })
+
+            const pw = window.open('', '_blank', 'width=1000,height=800')
+            if (!pw) return
+
+            pw.document.write(`<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>VetCare Pro — Reports & Analytics</title>
+  ${styles}
+  <style>
+    body { font-family: sans-serif; padding: 24px; background: #fff; color: #111; }
+    .report-header { display: flex; justify-content: space-between; align-items: center;
+      border-bottom: 2px solid #16a34a; padding-bottom: 12px; margin-bottom: 24px; }
+    .report-header h1 { margin: 0; font-size: 22px; font-weight: 700; }
+    .report-header p { margin: 4px 0 0; color: #555; font-size: 13px; }
+    .report-header .date { font-size: 13px; color: #555; }
+    .charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    @media print {
+      body { padding: 0; }
+      @page { size: A4 landscape; margin: 12mm; }
+    }
+  </style>
+</head>
+<body>
+  <div class="report-header">
+    <div>
+      <h1>VetCare Pro — Reports &amp; Analytics</h1>
+      <p>${branchName || 'Branch Report'}</p>
+    </div>
+    <span class="date">Generated: ${date}</span>
+  </div>
+  <div class="charts-grid">
+    ${area.innerHTML}
+  </div>
+  <script>
+    window.onload = function() {
+      setTimeout(function() { window.print(); }, 400);
+    };
+  </script>
+</body>
+</html>`)
+            pw.document.close()
+          }
+
           return (
             <div className="space-y-6">
-              <h1 className="text-2xl font-bold">Reports & Analytics</h1>
-              <div className="grid lg:grid-cols-2 gap-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h1 className="text-2xl font-bold">Reports & Analytics</h1>
+                  <p className="text-muted-foreground text-sm">Branch performance overview</p>
+                </div>
+                <Button onClick={handleDownloadPDF} variant="outline">
+                  <FileDown className="w-4 h-4 mr-2" />
+                  Download PDF
+                </Button>
+              </div>
+
+              <div id="report-print-area" className="grid lg:grid-cols-2 gap-6">
                 <AppointmentTrendsChart />
                 <RevenueDistributionChart />
                 <OverdueVaccinationsChart />
@@ -579,6 +647,7 @@ export default function VetClinicApp() {
               </div>
             </div>
           )
+        }
 
         case 'staff':
           return (
