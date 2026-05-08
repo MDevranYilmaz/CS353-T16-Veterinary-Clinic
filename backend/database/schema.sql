@@ -14,8 +14,6 @@ DROP TABLE IF EXISTS PetVaccinationPlan;
 DROP TABLE IF EXISTS PresMed;
 DROP TABLE IF EXISTS Prescription;
 DROP TABLE IF EXISTS BranchStock;
-DROP TABLE IF EXISTS StockEntry;
-DROP TABLE IF EXISTS LowStockAlert;
 DROP TABLE IF EXISTS Vaccine;
 DROP TABLE IF EXISTS Medicine;
 DROP TABLE IF EXISTS Bill;
@@ -178,28 +176,6 @@ CREATE TABLE BranchStock (
     PRIMARY KEY (branch_id, barcode_no),
     CONSTRAINT fk_stock_branch   FOREIGN KEY (branch_id)  REFERENCES Branch(branch_id)   ON DELETE CASCADE,
     CONSTRAINT fk_stock_medicine FOREIGN KEY (barcode_no) REFERENCES Medicine(barcode_no) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
--- -------------------------
--- StockEntry
--- -------------------------
-CREATE TABLE IF NOT EXISTS StockEntry (
-	id SERIAL PRIMARY KEY,
-    medicine_id INT REFERENCES medicine(id) ON DELETE CASCADE,
-    batch_number VARCHAR(50),
-    quantity INT,
-    expiry_date DATE,
-    date_added TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
--- -------------------------
--- LowStockAlert
--- -------------------------
-CREATE TABLE IF NOT EXISTS LowStockAlert (
-    id SERIAL PRIMARY KEY,
-    medicine_id INT REFERENCES medicine(id) ON DELETE CASCADE,
-    alert_message TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- -------------------------
