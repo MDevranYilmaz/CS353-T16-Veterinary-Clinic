@@ -56,6 +56,28 @@ function SectionHeader({ icon: Icon, title, description, color = 'text-primary' 
   )
 }
 
+const PDF_STYLES = `
+  body { font-family: sans-serif; padding: 24px; background: #fff; color: #111; font-size: 13px; }
+  .pdf-header { display: flex; justify-content: space-between; align-items: flex-start;
+    border-bottom: 2px solid #16a34a; padding-bottom: 12px; margin-bottom: 20px; }
+  .pdf-header h1 { margin: 0; font-size: 20px; font-weight: 700; color: #111; }
+  .pdf-header .sub { margin: 4px 0 0; color: #555; font-size: 12px; }
+  .section { margin-bottom: 28px; }
+  .section h2 { font-size: 14px; font-weight: 700; border-bottom: 1px solid #ddd;
+    padding-bottom: 6px; margin-bottom: 10px; color: #16a34a; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th { background: #f0fdf4; font-weight: 600; text-align: left;
+    padding: 6px 8px; border: 1px solid #d1fae5; color: #166534; }
+  td { padding: 5px 8px; border: 1px solid #e5e7eb; }
+  tr:nth-child(even) td { background: #f9fafb; }
+  .pct-high { color: #16a34a; font-weight: 600; }
+  .pct-mid { color: #d97706; font-weight: 600; }
+  .pct-low { color: #dc2626; font-weight: 600; }
+  .critical { background: #fef2f2 !important; color: #dc2626; font-weight: 600; }
+  .filter-note { font-size: 11px; color: #777; margin-bottom: 8px; }
+  @media print { @page { size: A4 landscape; margin: 12mm; } body { padding: 0; } }
+`
+
 export function ReportsPage() {
   const { user } = useAuth()
   const branchId = user?.branchId
@@ -73,6 +95,14 @@ export function ReportsPage() {
   const [wasteData, setWasteData] = useState<any[]>([])
   const [costData, setCostData] = useState<any[]>([])
   const [stockLoading, setStockLoading] = useState(false)
+
+  // ── Vaccination Analytics filters ───────────────────────────────────────
+  const [vacDateFrom, setVacDateFrom] = useState('')
+  const [vacDateTo, setVacDateTo] = useState('')
+  const [vacSearch, setVacSearch] = useState('')
+  const [appliedVacFrom, setAppliedVacFrom] = useState('')
+  const [appliedVacTo, setAppliedVacTo] = useState('')
+  const [appliedVacSearch, setAppliedVacSearch] = useState('')
 
   // ── Vaccination Analytics data ──────────────────────────────────────────
   const [complianceData, setComplianceData] = useState<any[]>([])
@@ -100,13 +130,13 @@ export function ReportsPage() {
   }, [branchId])
 
   // ── Load Vaccination Analytics ──────────────────────────────────────────
-  const loadVaccination = useCallback(() => {
+  const loadVaccination = useCallback((from: string, to: string) => {
     setVacLoading(true)
     Promise.all([
-      reportApi.compliance(),
-      reportApi.mostAdministeredVaccines(branchId || undefined),
+      reportApi.compliance(from || undefined, to || undefined),
+      reportApi.mostAdministeredVaccines(branchId || undefined, from || undefined, to || undefined),
       reportApi.overdueRates(),
-      reportApi.vaccinationTrends(),
+      reportApi.vaccinationTrends(from || undefined, to || undefined),
     ])
       .then(([comp, admin, overdue, trends]) => {
         setComplianceData(comp || [])
@@ -119,213 +149,187 @@ export function ReportsPage() {
   }, [branchId])
 
   useEffect(() => { loadStock('', '') }, [loadStock])
-  useEffect(() => { loadVaccination() }, [loadVaccination])
+  useEffect(() => { loadVaccination('', '') }, [loadVaccination])
 
-  const handleApplyFilters = () => {
+  // ── Stock filter handlers ───────────────────────────────────────────────
+  const handleApplyStockFilters = () => {
     setAppliedFrom(dateFrom)
     setAppliedTo(dateTo)
     setAppliedSearch(medSearch)
     loadStock(dateFrom, dateTo)
   }
-
-  const handleResetFilters = () => {
+  const handleResetStockFilters = () => {
     setDateFrom(''); setDateTo(''); setMedSearch('')
     setAppliedFrom(''); setAppliedTo(''); setAppliedSearch('')
     loadStock('', '')
   }
 
-  // Client-side LIKE filter on medicine name
+  // ── Vaccination filter handlers ─────────────────────────────────────────
+  const handleApplyVacFilters = () => {
+    setAppliedVacFrom(vacDateFrom)
+    setAppliedVacTo(vacDateTo)
+    setAppliedVacSearch(vacSearch)
+    loadVaccination(vacDateFrom, vacDateTo)
+  }
+  const handleResetVacFilters = () => {
+    setVacDateFrom(''); setVacDateTo(''); setVacSearch('')
+    setAppliedVacFrom(''); setAppliedVacTo(''); setAppliedVacSearch('')
+    loadVaccination('', '')
+  }
+
+  // Client-side LIKE filters
   const filteredStock = appliedSearch
     ? stockData.filter(r => r.med_name?.toLowerCase().includes(appliedSearch.toLowerCase()))
     : stockData
 
-  // ── PDF Download ────────────────────────────────────────────────────────
-  const handleDownloadPDF = () => {
-    const area = document.getElementById('reports-print-area')
-    if (!area) return
+  const filteredMostAdmin = appliedVacSearch
+    ? mostAdminData.filter(r => r.vaccine_name?.toLowerCase().includes(appliedVacSearch.toLowerCase()))
+    : mostAdminData
 
-    const styles = Array.from(document.querySelectorAll('style'))
-      .map(s => s.outerHTML).join('\n')
-
-    const date = new Date().toLocaleDateString('en-US', {
-      year: 'numeric', month: 'long', day: 'numeric',
-    })
-
+  // ── Stock PDF ────────────────────────────────────────────────────────────
+  const handleDownloadStockPDF = () => {
+    const date = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
     const filterNote = appliedFrom || appliedTo
       ? `Date range: ${appliedFrom || 'start'} → ${appliedTo || 'today'}`
       : 'All dates'
 
     const pw = window.open('', '_blank', 'width=1100,height=850')
     if (!pw) return
-
     pw.document.write(`<!DOCTYPE html>
-<html>
-<head>
+<html><head>
   <meta charset="utf-8" />
-  <title>VetCare Pro — Reports</title>
-  ${styles}
-  <style>
-    body { font-family: sans-serif; padding: 24px; background: #fff; color: #111; font-size: 13px; }
-    .pdf-header { display: flex; justify-content: space-between; align-items: flex-start;
-      border-bottom: 2px solid #16a34a; padding-bottom: 12px; margin-bottom: 20px; }
-    .pdf-header h1 { margin: 0; font-size: 20px; font-weight: 700; color: #111; }
-    .pdf-header .sub { margin: 4px 0 0; color: #555; font-size: 12px; }
-    .section { margin-bottom: 28px; }
-    .section h2 { font-size: 14px; font-weight: 700; border-bottom: 1px solid #ddd;
-      padding-bottom: 6px; margin-bottom: 10px; color: #16a34a; }
-    table { width: 100%; border-collapse: collapse; font-size: 12px; }
-    th { background: #f0fdf4; font-weight: 600; text-align: left;
-      padding: 6px 8px; border: 1px solid #d1fae5; color: #166534; }
-    td { padding: 5px 8px; border: 1px solid #e5e7eb; }
-    tr:nth-child(even) td { background: #f9fafb; }
-    .pct-high { color: #16a34a; font-weight: 600; }
-    .pct-mid { color: #d97706; font-weight: 600; }
-    .pct-low { color: #dc2626; font-weight: 600; }
-    .critical { background: #fef2f2 !important; color: #dc2626; font-weight: 600; }
-    .filter-note { font-size: 11px; color: #777; margin-bottom: 8px; }
-    @media print { @page { size: A4 landscape; margin: 12mm; } body { padding: 0; } }
-  </style>
-</head>
-<body>
+  <title>VetCare Pro — Stock & Operations</title>
+  <style>${PDF_STYLES}</style>
+</head><body>
   <div class="pdf-header">
     <div>
-      <h1>VetCare Pro — Reports &amp; Analytics</h1>
-      <p class="sub">Branch: ${user?.branchId ? `#${user.branchId}` : 'All'} &nbsp;|&nbsp; ${filterNote}</p>
+      <h1>VetCare Pro — Stock &amp; Operations Report</h1>
+      <p class="sub">Branch: ${branchId ? `#${branchId}` : 'All'} &nbsp;|&nbsp; ${filterNote}${appliedSearch ? ` | Medicine filter: "${appliedSearch}"` : ''}</p>
     </div>
-    <div style="text-align:right">
-      <p class="sub">Generated: ${date}</p>
-    </div>
+    <div style="text-align:right"><p class="sub">Generated: ${date}</p></div>
   </div>
 
-  <!-- Stock Consumption -->
   <div class="section">
     <h2>Stock Consumption</h2>
-    <p class="filter-note">${filterNote}${appliedSearch ? ` | Medicine filter: "${appliedSearch}"` : ''}</p>
     <table>
-      <thead><tr>
-        <th>Medicine</th><th>Type</th><th>Prescribed Qty</th>
-        <th>Wasted Qty</th><th>Total Consumed</th><th>Unit Cost</th><th>Total Cost</th>
-      </tr></thead>
-      <tbody>
-        ${filteredStock.slice(0, 30).map(r => `<tr>
-          <td>${r.med_name || ''}</td>
-          <td>${r.med_type || ''}</td>
-          <td>${fmtNum(r.prescribed_qty)}</td>
-          <td>${fmtNum(r.wasted_qty)}</td>
-          <td><strong>${fmtNum(r.total_consumed)}</strong></td>
-          <td>${fmt$(r.unit_cost)}</td>
-          <td><strong>${fmt$(r.total_cost)}</strong></td>
-        </tr>`).join('')}
-      </tbody>
+      <thead><tr><th>Medicine</th><th>Type</th><th>Prescribed Qty</th><th>Wasted Qty</th><th>Total Consumed</th><th>Unit Cost</th><th>Total Cost</th></tr></thead>
+      <tbody>${filteredStock.slice(0, 30).map(r => `<tr>
+        <td>${r.med_name || ''}</td><td>${r.med_type || ''}</td>
+        <td>${fmtNum(r.prescribed_qty)}</td><td>${fmtNum(r.wasted_qty)}</td>
+        <td><strong>${fmtNum(r.total_consumed)}</strong></td>
+        <td>${fmt$(r.unit_cost)}</td><td><strong>${fmt$(r.total_cost)}</strong></td>
+      </tr>`).join('')}</tbody>
     </table>
   </div>
 
-  <!-- Waste Statistics -->
   <div class="section">
     <h2>Waste Statistics</h2>
     <table>
-      <thead><tr>
-        <th>Medicine Type</th><th>Log Count</th><th>Units Wasted</th><th>Value Wasted</th>
-      </tr></thead>
-      <tbody>
-        ${wasteData.map(r => `<tr>
-          <td>${r.med_type || ''}</td>
-          <td>${fmtNum(r.log_count)}</td>
-          <td>${fmtNum(r.total_units_wasted)}</td>
-          <td class="${Number(r.total_value_wasted) > 500 ? 'critical' : ''}">${fmt$(r.total_value_wasted)}</td>
-        </tr>`).join('')}
-      </tbody>
+      <thead><tr><th>Medicine Type</th><th>Log Count</th><th>Units Wasted</th><th>Value Wasted</th></tr></thead>
+      <tbody>${wasteData.map(r => `<tr>
+        <td>${r.med_type || ''}</td><td>${fmtNum(r.log_count)}</td>
+        <td>${fmtNum(r.total_units_wasted)}</td>
+        <td class="${Number(r.total_value_wasted) > 500 ? 'critical' : ''}">${fmt$(r.total_value_wasted)}</td>
+      </tr>`).join('')}</tbody>
     </table>
   </div>
 
-  <!-- Cost Breakdown -->
   <div class="section">
     <h2>Inventory Cost Breakdown</h2>
     <table>
-      <thead><tr>
-        <th>Type</th><th>Distinct Medicines</th><th>Total Units</th><th>Inventory Value</th>
-      </tr></thead>
-      <tbody>
-        ${costData.map(r => `<tr>
-          <td>${r.med_type || ''}</td>
-          <td>${fmtNum(r.distinct_medicines)}</td>
-          <td>${fmtNum(r.total_units)}</td>
-          <td><strong>${fmt$(r.inventory_value)}</strong></td>
-        </tr>`).join('')}
-      </tbody>
+      <thead><tr><th>Type</th><th>Distinct Medicines</th><th>Total Units</th><th>Inventory Value</th></tr></thead>
+      <tbody>${costData.map(r => `<tr>
+        <td>${r.med_type || ''}</td><td>${fmtNum(r.distinct_medicines)}</td>
+        <td>${fmtNum(r.total_units)}</td><td><strong>${fmt$(r.inventory_value)}</strong></td>
+      </tr>`).join('')}</tbody>
+    </table>
+  </div>
+  <script>window.onload = function() { setTimeout(function() { window.print(); }, 500); };</script>
+</body></html>`)
+    pw.document.close()
+  }
+
+  // ── Vaccination PDF ──────────────────────────────────────────────────────
+  const handleDownloadVacPDF = () => {
+    const date = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+    const filterNote = appliedVacFrom || appliedVacTo
+      ? `Date range: ${appliedVacFrom || 'start'} → ${appliedVacTo || 'today'}`
+      : 'All dates'
+
+    const pw = window.open('', '_blank', 'width=1100,height=850')
+    if (!pw) return
+    pw.document.write(`<!DOCTYPE html>
+<html><head>
+  <meta charset="utf-8" />
+  <title>VetCare Pro — Vaccination Analytics</title>
+  <style>${PDF_STYLES}</style>
+</head><body>
+  <div class="pdf-header">
+    <div>
+      <h1>VetCare Pro — Vaccination Analytics Report</h1>
+      <p class="sub">${filterNote}${appliedVacSearch ? ` | Vaccine filter: "${appliedVacSearch}"` : ''}</p>
+    </div>
+    <div style="text-align:right"><p class="sub">Generated: ${date}</p></div>
+  </div>
+
+  <div class="section">
+    <h2>Vaccination Trends (Monthly)</h2>
+    <table>
+      <thead><tr><th>Month</th><th>Total Vaccinations</th><th>Unique Pets</th><th>Vets Involved</th></tr></thead>
+      <tbody>${trendsData.map(r => `<tr>
+        <td>${r.month || ''}</td>
+        <td><strong>${fmtNum(r.total_vaccinations)}</strong></td>
+        <td>${fmtNum(r.unique_pets_vaccinated)}</td>
+        <td>${fmtNum(r.vets_administered)}</td>
+      </tr>`).join('')}</tbody>
     </table>
   </div>
 
-  <!-- Vaccination Compliance -->
   <div class="section">
     <h2>Vaccination Compliance by Breed</h2>
     <table>
-      <thead><tr>
-        <th>Breed</th><th>Total Pets</th><th>Total Vaccinations</th><th>Up to Date</th><th>Compliance %</th>
-      </tr></thead>
-      <tbody>
-        ${complianceData.slice(0, 20).map(r => {
-          const pct = Number(r.compliance_pct ?? 0)
-          const cls = pct >= 80 ? 'pct-high' : pct >= 50 ? 'pct-mid' : 'pct-low'
-          return `<tr>
-            <td>${r.breed || 'Unknown'}</td>
-            <td>${fmtNum(r.total_pets)}</td>
-            <td>${fmtNum(r.total_vaccinations)}</td>
-            <td>${fmtNum(r.up_to_date)}</td>
-            <td class="${cls}">${fmtPct(pct)}</td>
-          </tr>`
-        }).join('')}
-      </tbody>
+      <thead><tr><th>Breed</th><th>Total Pets</th><th>Total Vaccinations</th><th>Up to Date</th><th>Compliance %</th></tr></thead>
+      <tbody>${complianceData.slice(0, 20).map(r => {
+        const pct = Number(r.compliance_pct ?? 0)
+        const cls = pct >= 80 ? 'pct-high' : pct >= 50 ? 'pct-mid' : 'pct-low'
+        return `<tr>
+          <td>${r.breed || 'Unknown'}</td><td>${fmtNum(r.total_pets)}</td>
+          <td>${fmtNum(r.total_vaccinations)}</td><td>${fmtNum(r.up_to_date)}</td>
+          <td class="${cls}">${fmtPct(pct)}</td>
+        </tr>`
+      }).join('')}</tbody>
     </table>
   </div>
 
-  <!-- Most Administered -->
   <div class="section">
     <h2>Most Administered Vaccines</h2>
     <table>
-      <thead><tr>
-        <th>Vaccine</th><th>Type</th><th>Branch</th>
-        <th>Total Administered</th><th>Unique Pets</th><th>First</th><th>Last</th>
-      </tr></thead>
-      <tbody>
-        ${mostAdminData.map(r => `<tr>
-          <td>${r.vaccine_name || ''}</td>
-          <td>${r.vac_type || ''}</td>
-          <td>${r.branch_name || ''}</td>
-          <td><strong>${fmtNum(r.total_administered)}</strong></td>
-          <td>${fmtNum(r.unique_pets)}</td>
-          <td>${r.first_administered ? r.first_administered.toString().slice(0,10) : ''}</td>
-          <td>${r.last_administered ? r.last_administered.toString().slice(0,10) : ''}</td>
-        </tr>`).join('')}
-      </tbody>
+      <thead><tr><th>Vaccine</th><th>Type</th><th>Branch</th><th>Total Administered</th><th>Unique Pets</th><th>First</th><th>Last</th></tr></thead>
+      <tbody>${filteredMostAdmin.map(r => `<tr>
+        <td>${r.vaccine_name || ''}</td><td>${r.vac_type || ''}</td><td>${r.branch_name || ''}</td>
+        <td><strong>${fmtNum(r.total_administered)}</strong></td><td>${fmtNum(r.unique_pets)}</td>
+        <td>${r.first_administered ? String(r.first_administered).slice(0, 10) : ''}</td>
+        <td>${r.last_administered ? String(r.last_administered).slice(0, 10) : ''}</td>
+      </tr>`).join('')}</tbody>
     </table>
   </div>
 
-  <!-- Overdue Rates -->
   <div class="section">
     <h2>Overdue Vaccination Rates by Branch</h2>
     <table>
-      <thead><tr>
-        <th>Branch</th><th>Pets w/ Overdue</th><th>Total Overdue</th>
-        <th>Avg Days</th><th>Max Days</th><th>Critical (&gt;90d)</th><th>High Priority (31–90d)</th>
-      </tr></thead>
-      <tbody>
-        ${overdueRatesData.map(r => `<tr>
-          <td>${r.branch_name || ''}</td>
-          <td>${fmtNum(r.pets_with_overdue)}</td>
-          <td>${fmtNum(r.total_overdue_vaccinations)}</td>
-          <td>${Number(r.avg_days_overdue ?? 0).toFixed(1)}</td>
-          <td>${fmtNum(r.max_days_overdue)}</td>
-          <td class="${Number(r.critical_overdue) > 0 ? 'critical' : ''}">${fmtNum(r.critical_overdue)}</td>
-          <td>${fmtNum(r.high_priority_overdue)}</td>
-        </tr>`).join('')}
-      </tbody>
+      <thead><tr><th>Branch</th><th>Pets w/ Overdue</th><th>Total Overdue</th><th>Avg Days</th><th>Max Days</th><th>Critical (&gt;90d)</th><th>High Priority (31–90d)</th></tr></thead>
+      <tbody>${overdueRatesData.map(r => `<tr>
+        <td>${r.branch_name || ''}</td><td>${fmtNum(r.pets_with_overdue)}</td>
+        <td>${fmtNum(r.total_overdue_vaccinations)}</td>
+        <td>${Number(r.avg_days_overdue ?? 0).toFixed(1)}</td>
+        <td>${fmtNum(r.max_days_overdue)}</td>
+        <td class="${Number(r.critical_overdue) > 0 ? 'critical' : ''}">${fmtNum(r.critical_overdue)}</td>
+        <td>${fmtNum(r.high_priority_overdue)}</td>
+      </tr>`).join('')}</tbody>
     </table>
   </div>
-
   <script>window.onload = function() { setTimeout(function() { window.print(); }, 500); };</script>
-</body>
-</html>`)
+</body></html>`)
     pw.document.close()
   }
 
@@ -335,17 +339,11 @@ export function ReportsPage() {
   }
 
   return (
-    <div className="space-y-6" id="reports-print-area">
+    <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Reports & Analytics</h1>
-          <p className="text-muted-foreground text-sm">Branch performance and vaccination analytics</p>
-        </div>
-        <Button onClick={handleDownloadPDF} variant="outline">
-          <FileDown className="w-4 h-4 mr-2" />
-          Download PDF
-        </Button>
+      <div>
+        <h1 className="text-2xl font-bold">Reports & Analytics</h1>
+        <p className="text-muted-foreground text-sm">Branch performance and vaccination analytics</p>
       </div>
 
       <Tabs defaultValue="stock">
@@ -356,6 +354,18 @@ export function ReportsPage() {
 
         {/* ── Stock & Operations Tab ─────────────────────────────────────── */}
         <TabsContent value="stock" className="space-y-6 mt-6">
+
+          {/* Tab header with its own Download button */}
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-base font-semibold">Stock & Operations</h2>
+              <p className="text-xs text-muted-foreground">Stock consumption, waste statistics, and inventory cost breakdown</p>
+            </div>
+            <Button onClick={handleDownloadStockPDF} variant="outline" size="sm">
+              <FileDown className="w-4 h-4 mr-2" />
+              Download PDF
+            </Button>
+          </div>
 
           {/* Search / Filter bar */}
           <Card>
@@ -378,18 +388,18 @@ export function ReportsPage() {
                 <div className="space-y-1">
                   <Label className="text-xs">Medicine Name (contains)</Label>
                   <Input
-                    placeholder="e.g. Rabies"
+                    placeholder="e.g. Amoxicillin"
                     value={medSearch}
                     onChange={e => setMedSearch(e.target.value)}
                     className="h-8 text-sm"
                   />
                 </div>
                 <div className="flex gap-2">
-                  <Button size="sm" onClick={handleApplyFilters} disabled={stockLoading} className="flex-1">
+                  <Button size="sm" onClick={handleApplyStockFilters} disabled={stockLoading} className="flex-1">
                     {stockLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Search className="w-3 h-3" />}
                     <span className="ml-1">Apply</span>
                   </Button>
-                  <Button size="sm" variant="ghost" onClick={handleResetFilters} disabled={stockLoading}>
+                  <Button size="sm" variant="ghost" onClick={handleResetStockFilters} disabled={stockLoading}>
                     <RotateCcw className="w-3 h-3" />
                   </Button>
                 </div>
@@ -551,16 +561,82 @@ export function ReportsPage() {
         {/* ── Vaccination Analytics Tab ──────────────────────────────────── */}
         <TabsContent value="vaccination" className="space-y-6 mt-6">
 
+          {/* Tab header with its own Download button */}
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-base font-semibold">Vaccination Analytics</h2>
+              <p className="text-xs text-muted-foreground">Compliance rates, administered vaccines, and overdue analysis</p>
+            </div>
+            <Button onClick={handleDownloadVacPDF} variant="outline" size="sm">
+              <FileDown className="w-4 h-4 mr-2" />
+              Download PDF
+            </Button>
+          </div>
+
+          {/* Vaccination Filter bar */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                <Search className="w-4 h-4" /> Search & Filter
+              </CardTitle>
+              <CardDescription className="text-xs">Filter by vaccination date range and vaccine name (partial match supported)</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid sm:grid-cols-4 gap-3 items-end">
+                <div className="space-y-1">
+                  <Label className="text-xs">Date From</Label>
+                  <Input type="date" value={vacDateFrom} onChange={e => setVacDateFrom(e.target.value)} className="h-8 text-sm" />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Date To</Label>
+                  <Input type="date" value={vacDateTo} onChange={e => setVacDateTo(e.target.value)} className="h-8 text-sm" />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Vaccine Name (contains)</Label>
+                  <Input
+                    placeholder="e.g. Rabies"
+                    value={vacSearch}
+                    onChange={e => setVacSearch(e.target.value)}
+                    className="h-8 text-sm"
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <Button size="sm" onClick={handleApplyVacFilters} disabled={vacLoading} className="flex-1">
+                    {vacLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Search className="w-3 h-3" />}
+                    <span className="ml-1">Apply</span>
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={handleResetVacFilters} disabled={vacLoading}>
+                    <RotateCcw className="w-3 h-3" />
+                  </Button>
+                </div>
+              </div>
+              {(appliedVacFrom || appliedVacTo || appliedVacSearch) && (
+                <div className="mt-2 flex flex-wrap gap-1">
+                  {(appliedVacFrom || appliedVacTo) && (
+                    <Badge variant="secondary" className="text-xs">
+                      {appliedVacFrom || '∞'} → {appliedVacTo || 'today'}
+                    </Badge>
+                  )}
+                  {appliedVacSearch && (
+                    <Badge variant="secondary" className="text-xs">
+                      name contains "{appliedVacSearch}"
+                    </Badge>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
           {/* Vaccination Trends chart */}
           <Card>
             <CardHeader className="pb-2">
-              <SectionHeader icon={TrendingUp} title="Vaccination Trends" description="Monthly vaccinations administered (last 6 months)" />
+              <SectionHeader icon={TrendingUp} title="Vaccination Trends" description="Monthly vaccinations administered" />
             </CardHeader>
             <CardContent>
               {vacLoading ? (
                 <div className="flex justify-center py-8"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>
               ) : trendsData.length === 0 ? (
-                <p className="text-center text-muted-foreground py-6 text-sm">No trend data</p>
+                <p className="text-center text-muted-foreground py-6 text-sm">No trend data for selected period</p>
               ) : (
                 <ChartContainer config={trendConfig} className="h-56">
                   <ResponsiveContainer width="100%" height="100%">
@@ -588,7 +664,7 @@ export function ReportsPage() {
               {vacLoading ? (
                 <div className="flex justify-center py-8"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>
               ) : complianceData.length === 0 ? (
-                <p className="text-center text-muted-foreground py-6 text-sm">No compliance data</p>
+                <p className="text-center text-muted-foreground py-6 text-sm">No compliance data for selected period</p>
               ) : (
                 <div className="rounded-md border overflow-x-auto">
                   <Table>
@@ -630,13 +706,13 @@ export function ReportsPage() {
             <CardContent>
               {vacLoading ? (
                 <div className="flex justify-center py-8"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>
-              ) : mostAdminData.length === 0 ? (
-                <p className="text-center text-muted-foreground py-6 text-sm">No data</p>
+              ) : filteredMostAdmin.length === 0 ? (
+                <p className="text-center text-muted-foreground py-6 text-sm">No data for selected filters</p>
               ) : (
                 <>
                   <div className="h-52 mb-4">
                     <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={mostAdminData.slice(0, 6)} layout="vertical">
+                      <BarChart data={filteredMostAdmin.slice(0, 6)} layout="vertical">
                         <CartesianGrid strokeDasharray="3 3" horizontal={false} />
                         <XAxis type="number" tick={{ fontSize: 11 }} />
                         <YAxis dataKey="vaccine_name" type="category" width={120} tick={{ fontSize: 11 }} />
@@ -659,7 +735,7 @@ export function ReportsPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {mostAdminData.map((r, i) => (
+                        {filteredMostAdmin.map((r, i) => (
                           <TableRow key={i}>
                             <TableCell className="font-medium">{r.vaccine_name}</TableCell>
                             <TableCell><Badge variant="outline" className="text-xs">{r.vac_type}</Badge></TableCell>

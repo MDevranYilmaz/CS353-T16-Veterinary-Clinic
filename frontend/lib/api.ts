@@ -328,6 +328,8 @@ export const petApi = {
   },
   create: (data: { name: string; owner_id: number; breed?: string; birth_date?: string; allergies?: string }) =>
     post<{ pet_id: number }>('/pets', data),
+  delete: (petId: number | string) =>
+    request<any>(`/pets/${petId}`, { method: 'DELETE' }),
   medicalHistory: async (petId: number | string): Promise<MedicalRecord[]> => {
     const data = await get<any>(`/pets/${petId}/medical-history`)
     const items = data?.items ?? data ?? []
@@ -592,14 +594,28 @@ export const wasteLogApi = {
 // ─── Reports ─────────────────────────────────────────────────────────────────
 
 export const reportApi = {
-  vaccinationTrends: () => get<any[]>('/reports/vaccination-trends'),
-  compliance: () => get<any[]>('/reports/vaccination-compliance'),
-  mostAdministeredVaccines: (branchId?: number | string) =>
-    get<any[]>(
-      branchId
-        ? `/reports/vaccination-most-administered?branch_id=${branchId}`
-        : '/reports/vaccination-most-administered'
-    ),
+  vaccinationTrends: (from?: string, to?: string): Promise<any[]> => {
+    const p = new URLSearchParams()
+    if (from) p.set('from', from)
+    if (to) p.set('to', to)
+    const q = p.toString()
+    return get<any[]>(`/reports/vaccination-trends${q ? '?' + q : ''}`)
+  },
+  compliance: (from?: string, to?: string): Promise<any[]> => {
+    const p = new URLSearchParams()
+    if (from) p.set('from', from)
+    if (to) p.set('to', to)
+    const q = p.toString()
+    return get<any[]>(`/reports/vaccination-compliance${q ? '?' + q : ''}`)
+  },
+  mostAdministeredVaccines: (branchId?: number | string, from?: string, to?: string): Promise<any[]> => {
+    const p = new URLSearchParams()
+    if (branchId) p.set('branch_id', String(branchId))
+    if (from) p.set('from', from)
+    if (to) p.set('to', to)
+    const q = p.toString()
+    return get<any[]>(`/reports/vaccination-most-administered${q ? '?' + q : ''}`)
+  },
   overdueRates: () => get<any[]>('/reports/vaccination-overdue-rates'),
   vaccinationCoverage: () => get<any[]>('/reports/vaccination-coverage'),
   veterinarianVaccinationPerformance: (months?: number) =>

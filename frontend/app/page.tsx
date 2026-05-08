@@ -276,6 +276,14 @@ export default function VetClinicApp() {
                         setRecordsPetId(pet.id)
                         handleViewChange('pet-records')
                       }}
+                      onDelete={async () => {
+                        try {
+                          await petApi.delete(pet.id)
+                          reloadOwnerPets()
+                        } catch (err) {
+                          alert('Failed to remove pet: ' + (err instanceof Error ? err.message : 'Unknown error'))
+                        }
+                      }}
                     />
                   ))}
                 </div>
