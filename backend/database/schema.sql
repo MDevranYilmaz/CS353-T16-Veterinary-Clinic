@@ -93,6 +93,7 @@ CREATE TABLE Pet (
     gender     ENUM('M', 'F') NOT NULL,
     birth_date DATE,
     allergies  TEXT,
+    is_deleted TINYINT(1) NOT NULL DEFAULT 0,
     owner_id   INT NOT NULL,
     CONSTRAINT fk_pet_owner FOREIGN KEY (owner_id) REFERENCES Pet_Owner(user_id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

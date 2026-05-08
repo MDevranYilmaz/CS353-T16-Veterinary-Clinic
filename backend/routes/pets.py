@@ -73,6 +73,22 @@ def get_pet(pet_id):
         return error("Failed to fetch pet", 500)
 
 
+@bp.route("/<int:pet_id>", methods=["DELETE"])
+@require_auth
+def delete_pet(pet_id):
+    try:
+        if g.user.get("role") != "pet_owner":
+            return error("Only pet owners can remove pets", 403)
+        owner_id = g.user["user_id"]
+        deleted = PetModel.soft_delete(pet_id, owner_id)
+        if not deleted:
+            return error("Pet not found or you do not own this pet", 404)
+        return success({}, "Pet removed from your profile")
+    except Exception as exc:
+        logger.error("delete_pet error: %s", exc)
+        return error("Failed to remove pet", 500)
+
+
 @bp.route("/<int:pet_id>/medical-history", methods=["GET"])
 @require_auth
 def pet_medical_history(pet_id):

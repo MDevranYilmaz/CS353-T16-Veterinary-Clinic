@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import type { Pet } from '@/lib/types'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -14,13 +15,25 @@ import {
   Rabbit,
   MoreHorizontal,
   Syringe,
+  Trash2,
 } from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { cn } from '@/lib/utils'
 
 interface PetCardProps {
@@ -28,6 +41,7 @@ interface PetCardProps {
   onViewDetails?: () => void
   onBookAppointment?: () => void
   onViewRecords?: () => void
+  onDelete?: () => void
   compact?: boolean
 }
 
@@ -39,9 +53,10 @@ const speciesIcons: Record<string, React.ElementType> = {
   other: Dog,
 }
 
-export function PetCard({ pet, onViewDetails, onBookAppointment, onViewRecords, compact }: PetCardProps) {
+export function PetCard({ pet, onViewDetails, onBookAppointment, onViewRecords, onDelete, compact }: PetCardProps) {
   const SpeciesIcon = speciesIcons[pet.species] || Dog
   const hasAlerts = (pet.medicalAlerts?.length || 0) > 0
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
 
   const getVaccinationBadge = () => {
     switch (pet.vaccinationStatus) {
@@ -80,101 +95,141 @@ export function PetCard({ pet, onViewDetails, onBookAppointment, onViewRecords, 
   }
 
   return (
-    <Card className="overflow-hidden hover:shadow-lg transition-shadow">
-      <CardHeader className="p-0">
-        <div className="relative h-40 bg-muted">
-          {pet.imageUrl ? (
-            <img
-              src={pet.imageUrl}
-              alt={pet.name}
-              className="w-full h-full object-cover"
-            />
-          ) : (
-            <div className="flex items-center justify-center h-full">
-              <SpeciesIcon className="w-16 h-16 text-muted-foreground" />
+    <>
+      <Card className="overflow-hidden hover:shadow-lg transition-shadow">
+        <CardHeader className="p-0">
+          <div className="relative h-40 bg-muted">
+            {pet.imageUrl ? (
+              <img
+                src={pet.imageUrl}
+                alt={pet.name}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <div className="flex items-center justify-center h-full">
+                <SpeciesIcon className="w-16 h-16 text-muted-foreground" />
+              </div>
+            )}
+            <div className="absolute top-3 right-3">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="secondary" size="icon" className="w-8 h-8 bg-card/90 backdrop-blur-sm">
+                    <MoreHorizontal className="w-4 h-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={onViewRecords}>Medical Records</DropdownMenuItem>
+                  <DropdownMenuItem onClick={onBookAppointment}>Book Appointment</DropdownMenuItem>
+                  {onDelete && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        className="text-destructive focus:text-destructive focus:bg-destructive/10"
+                        onClick={() => setShowDeleteDialog(true)}
+                      >
+                        <Trash2 className="w-4 h-4 mr-2" />
+                        Remove Pet
+                      </DropdownMenuItem>
+                    </>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
-          )}
-          <div className="absolute top-3 right-3">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="secondary" size="icon" className="w-8 h-8 bg-card/90 backdrop-blur-sm">
-                  <MoreHorizontal className="w-4 h-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={onViewRecords}>Medical Records</DropdownMenuItem>
-                <DropdownMenuItem onClick={onBookAppointment}>Book Appointment</DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            {hasAlerts && (
+              <div className="absolute top-3 left-3">
+                <Badge variant="destructive" className="gap-1">
+                  <AlertTriangle className="w-3 h-3" />
+                  Medical Alert
+                </Badge>
+              </div>
+            )}
           </div>
-          {hasAlerts && (
-            <div className="absolute top-3 left-3">
-              <Badge variant="destructive" className="gap-1">
-                <AlertTriangle className="w-3 h-3" />
-                Medical Alert
-              </Badge>
+        </CardHeader>
+        <CardContent className="p-4">
+          <div className="space-y-3">
+            <div className="flex items-start justify-between">
+              <div>
+                <h3 className="font-semibold text-lg">{pet.name}</h3>
+                <p className="text-sm text-muted-foreground">{pet.breed}</p>
+              </div>
+              {getVaccinationBadge()}
             </div>
-          )}
-        </div>
-      </CardHeader>
-      <CardContent className="p-4">
-        <div className="space-y-3">
-          <div className="flex items-start justify-between">
-            <div>
-              <h3 className="font-semibold text-lg">{pet.name}</h3>
-              <p className="text-sm text-muted-foreground">{pet.breed}</p>
-            </div>
-            {getVaccinationBadge()}
-          </div>
 
-          <div className="flex gap-4 text-sm text-muted-foreground">
-            <span>{pet.age} years old</span>
-            <span>{pet.weight} kg</span>
-          </div>
+            <div className="flex gap-4 text-sm text-muted-foreground">
+              <span>{pet.age} years old</span>
+              <span>{pet.weight} kg</span>
+            </div>
 
-          {/* Allergies & Alerts */}
-          {(pet.allergies.length > 0 || pet.medicalAlerts.length > 0) && (
-            <div className="space-y-2 pt-2 border-t">
-              {pet.allergies.length > 0 && (
-                <div>
-                  <p className="text-xs font-medium text-destructive mb-1">Allergies</p>
-                  <div className="flex flex-wrap gap-1">
-                    {pet.allergies.map((allergy, i) => (
-                      <Badge key={i} variant="outline" className="text-xs border-destructive/30 text-destructive">
-                        {allergy}
-                      </Badge>
-                    ))}
+            {/* Allergies & Alerts */}
+            {(pet.allergies.length > 0 || pet.medicalAlerts.length > 0) && (
+              <div className="space-y-2 pt-2 border-t">
+                {pet.allergies.length > 0 && (
+                  <div>
+                    <p className="text-xs font-medium text-destructive mb-1">Allergies</p>
+                    <div className="flex flex-wrap gap-1">
+                      {pet.allergies.map((allergy, i) => (
+                        <Badge key={i} variant="outline" className="text-xs border-destructive/30 text-destructive">
+                          {allergy}
+                        </Badge>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )}
-              {pet.medicalAlerts.length > 0 && (
-                <div>
-                  <p className="text-xs font-medium text-warning-foreground mb-1">Medical Notes</p>
-                  <ul className="text-xs text-muted-foreground space-y-0.5">
-                    {pet.medicalAlerts.map((alert, i) => (
-                      <li key={i} className="flex items-start gap-1">
-                        <span className="text-warning-foreground">•</span>
-                        {alert}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </div>
-          )}
+                )}
+                {pet.medicalAlerts.length > 0 && (
+                  <div>
+                    <p className="text-xs font-medium text-warning-foreground mb-1">Medical Notes</p>
+                    <ul className="text-xs text-muted-foreground space-y-0.5">
+                      {pet.medicalAlerts.map((alert, i) => (
+                        <li key={i} className="flex items-start gap-1">
+                          <span className="text-warning-foreground">•</span>
+                          {alert}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
 
-          <div className="flex gap-2 pt-2">
-            <Button size="sm" className="flex-1 gap-1.5" onClick={onBookAppointment}>
-              <Calendar className="w-4 h-4" />
-              Book Visit
-            </Button>
-            <Button size="sm" variant="outline" className="gap-1.5" onClick={onViewRecords}>
-              <Syringe className="w-4 h-4" />
-              Records
-            </Button>
+            <div className="flex gap-2 pt-2">
+              <Button size="sm" className="flex-1 gap-1.5" onClick={onBookAppointment}>
+                <Calendar className="w-4 h-4" />
+                Book Visit
+              </Button>
+              <Button size="sm" variant="outline" className="gap-1.5" onClick={onViewRecords}>
+                <Syringe className="w-4 h-4" />
+                Records
+              </Button>
+            </div>
           </div>
-        </div>
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+
+      {/* Delete confirmation dialog */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove {pet.name} from your profile?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {pet.name} will be removed from your pet list. All medical records, appointments,
+              prescriptions, and billing history will be retained and remain accessible to
+              your veterinarian and clinic staff.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                setShowDeleteDialog(false)
+                onDelete?.()
+              }}
+            >
+              Remove Pet
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   )
 }

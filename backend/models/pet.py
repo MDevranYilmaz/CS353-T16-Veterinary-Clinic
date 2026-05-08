@@ -30,10 +30,19 @@ class PetModel:
     def list_by_owner(owner_id: int):
         with DBContext() as (conn, cur):
             cur.execute(
-                "SELECT * FROM Pet WHERE owner_id = %s ORDER BY name",
+                "SELECT * FROM Pet WHERE owner_id = %s AND is_deleted = 0 ORDER BY name",
                 (owner_id,),
             )
             return cur.fetchall()
+
+    @staticmethod
+    def soft_delete(pet_id: int, owner_id: int) -> bool:
+        with DBContext() as (conn, cur):
+            cur.execute(
+                "UPDATE Pet SET is_deleted = 1 WHERE pet_id = %s AND owner_id = %s AND is_deleted = 0",
+                (pet_id, owner_id),
+            )
+            return cur.rowcount > 0
 
 
 class MedicalHistoryModel:

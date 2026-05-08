@@ -116,10 +116,21 @@ def cost_breakdown(branch_id):
 @bp.route("/vaccination-compliance", methods=["GET"])
 @require_role("manager", "veterinarian")
 def vaccination_compliance():
+    from_date = request.args.get("from")
+    to_date = request.args.get("to")
     try:
+        conditions = []
+        params = []
+        if from_date:
+            conditions.append("v.vac_date >= %s")
+            params.append(from_date)
+        if to_date:
+            conditions.append("v.vac_date <= %s")
+            params.append(to_date)
+        date_filter = ("AND " + " AND ".join(conditions)) if conditions else ""
         with DBContext() as (conn, cur):
             cur.execute(
-                """
+                f"""
                 SELECT p.breed,
                        COUNT(DISTINCT p.pet_id) AS total_pets,
                        COUNT(v.vac_id) AS total_vaccinations,
@@ -131,9 +142,11 @@ def vaccination_compliance():
                        ) AS compliance_pct
                 FROM Pet p
                 LEFT JOIN Vaccination v ON v.pet_id = p.pet_id
+                WHERE 1=1 {date_filter}
                 GROUP BY p.breed
                 ORDER BY compliance_pct DESC
-                """
+                """,
+                params,
             )
             rows = cur.fetchall()
         return success(rows)
@@ -145,19 +158,31 @@ def vaccination_compliance():
 @bp.route("/vaccination-trends", methods=["GET"])
 @require_role("manager", "veterinarian")
 def vaccination_trends():
+    from_date = request.args.get("from")
+    to_date = request.args.get("to")
     try:
+        conditions = ["vac_date >= DATE_SUB(CURDATE(), INTERVAL 12 MONTH)"]
+        params = []
+        if from_date:
+            conditions.append("vac_date >= %s")
+            params.append(from_date)
+        if to_date:
+            conditions.append("vac_date <= %s")
+            params.append(to_date)
+        where = "WHERE " + " AND ".join(conditions)
         with DBContext() as (conn, cur):
             cur.execute(
-                """
+                f"""
                 SELECT DATE_FORMAT(vac_date, '%Y-%m') AS month,
                        COUNT(*) AS total_vaccinations,
                        COUNT(DISTINCT pet_id) AS unique_pets_vaccinated,
                        COUNT(DISTINCT vet_id) AS vets_administered
                 FROM Vaccination
-                WHERE vac_date >= DATE_SUB(CURDATE(), INTERVAL 12 MONTH)
+                {where}
                 GROUP BY DATE_FORMAT(vac_date, '%Y-%m')
                 ORDER BY month DESC
-                """
+                """,
+                params,
             )
             rows = cur.fetchall()
         return success(rows)
@@ -171,11 +196,20 @@ def vaccination_trends():
 def vaccination_most_administered():
     try:
         branch_id = request.args.get("branch_id")
+        from_date = request.args.get("from")
+        to_date = request.args.get("to")
         params = []
-        where = ""
+        conditions = []
         if branch_id:
-            where = "WHERE br.branch_id = %s"
+            conditions.append("br.branch_id = %s")
             params.append(branch_id)
+        if from_date:
+            conditions.append("vac.vac_date >= %s")
+            params.append(from_date)
+        if to_date:
+            conditions.append("vac.vac_date <= %s")
+            params.append(to_date)
+        where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
 
         with DBContext() as (conn, cur):
             cur.execute(
