@@ -70,7 +70,10 @@ export function ManagerDashboard({ onNavigate, inventoryOnly, billingOnly }: Man
 
   useEffect(() => {
     if (!branchId) return
-    branchApi.get(branchId).then(b => setBranchName(b.name)).catch(() => {})
+    branchApi.list().then(branches => {
+      const b = branches.find(x => String(x.id) === String(branchId))
+      if (b) setBranchName(b.name)
+    }).catch(() => {})
   }, [branchId])
 
   useEffect(() => {

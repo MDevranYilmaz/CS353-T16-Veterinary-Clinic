@@ -125,7 +125,10 @@ export function VetDashboard({
 
   useEffect(() => {
     if (!user?.branchId) return
-    branchApi.get(user.branchId).then(b => setBranchName(b.name)).catch(() => {})
+    branchApi.list().then(branches => {
+      const b = branches.find(x => String(x.id) === String(user.branchId))
+      if (b) setBranchName(b.name)
+    }).catch(() => {})
   }, [user?.branchId])
 
   useEffect(() => {
